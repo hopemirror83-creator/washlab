@@ -2,7 +2,8 @@ const MAX_SLUG_BYTES = 240;
 
 export async function onRequest(context) {
   const parameter = context.params.slug;
-  const slug = Array.isArray(parameter) ? parameter.join('/') : String(parameter || '');
+  const rawSlug = Array.isArray(parameter) ? parameter.join('/') : String(parameter || '');
+  const slug = safeDecodeURIComponent(rawSlug).normalize('NFC');
 
   if (new TextEncoder().encode(slug).length <= MAX_SLUG_BYTES) {
     return context.next();
@@ -18,4 +19,12 @@ export async function onRequest(context) {
   destination.pathname = `/carwash/${prefix}-carwash-${digest}/`;
 
   return Response.redirect(destination.toString(), 301);
+}
+
+function safeDecodeURIComponent(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }
