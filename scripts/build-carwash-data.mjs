@@ -1,4 +1,5 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 
 const ROOT = process.cwd();
@@ -182,6 +183,7 @@ function isSuppressedCarwash(item) {
 }
 
 const items = mergeExternalItems(naverLocalItems, publicItems, { appendExternal: false })
+  .map((item) => ({ ...item, slug: compactCarwashSlug(item.slug) }))
   .map(applyRankingMetadata)
   .sort(compareCarwashes);
 
@@ -1591,6 +1593,15 @@ function slugify(value) {
     .replace(/\s+/g, '-')
     .replace(/-+/g, '-')
     .toLowerCase();
+}
+
+function compactCarwashSlug(slug) {
+  const value = String(slug || '');
+  if (Buffer.byteLength(value, 'utf8') <= 240) return value;
+
+  const prefix = value.split('-').slice(0, 2).join('-') || 'carwash';
+  const digest = createHash('sha256').update(value).digest('hex').slice(0, 16);
+  return `${prefix}-carwash-${digest}`;
 }
 
 function clean(value) {
