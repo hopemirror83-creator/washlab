@@ -8,10 +8,9 @@ const DATA_DIR = path.join(ROOT, 'data');
 const GENERATED_FILE = path.join(DATA_DIR, 'generated-carwash-pages.json');
 const REVIEW_FILE = path.join(DATA_DIR, 'naver-review-sources.json');
 const REPORT_DIR = path.join(DATA_DIR, 'vertex-test');
-const DEFAULT_VERTEX_PROJECT_ID = 'codex-503811';
+const DEFAULT_VERTEX_PROJECT_ID = 'wooram-505501';
 const DEFAULT_VERTEX_LOCATION = 'global';
-const DEFAULT_VERTEX_SERVICE_ACCOUNT_FILE = 'C:\\내문서\\애드버코더\\codex-503811-a0ac868a328d.json';
-const DEFAULT_VERTEX_VIDEO_BUCKET = 'codex-503811-video-assets';
+const DEFAULT_VERTEX_SERVICE_ACCOUNT_FILE = 'C:\\내문서\\애드버코더\\wooram-505501-36d087664df2.json';
 const cityLabel = process.env.PREMIUM_CITY_LABEL || '인천';
 const districtFilter = process.env.PREMIUM_DISTRICT_FILTER || '';
 const providerName = process.env.PREMIUM_PROVIDER_NAME || `gemini-${cityLabel}-premium`;
@@ -29,8 +28,6 @@ if (forceGeminiApi) {
   process.env.GOOGLE_APPLICATION_CREDENTIALS = DEFAULT_VERTEX_SERVICE_ACCOUNT_FILE;
   process.env.GOOGLE_CLOUD_PROJECT = DEFAULT_VERTEX_PROJECT_ID;
   process.env.VERTEX_LOCATION = DEFAULT_VERTEX_LOCATION;
-  process.env.VERTEX_VIDEO_BUCKET = DEFAULT_VERTEX_VIDEO_BUCKET;
-  process.env.VIDEO_BUCKET = DEFAULT_VERTEX_VIDEO_BUCKET;
 }
 
 const useVertex = !forceGeminiApi && Boolean(process.env.VERTEX_SERVICE_ACCOUNT_FILE);
@@ -47,7 +44,7 @@ const limit = Number(process.env.PREMIUM_REVIEW_LIMIT || 9999);
 const force = process.env.FORCE_PREMIUM === '1';
 const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 const vertexLocation = process.env.VERTEX_LOCATION || DEFAULT_VERTEX_LOCATION;
-const vertexModelCandidates = (process.env.VERTEX_MODEL_CANDIDATES || 'gemini-3.1-flash,gemini-3.0-flash,gemini-2.5-flash,gemini-2.5-flash-lite,gemini-2.0-flash')
+const vertexModelCandidates = (process.env.VERTEX_MODEL_CANDIDATES || 'gemini-3.1-flash,gemini-3-flash-preview,gemini-2.5-flash,gemini-2.5-flash-lite,gemini-2.0-flash')
   .split(',')
   .map((value) => value.trim())
   .filter(Boolean);
