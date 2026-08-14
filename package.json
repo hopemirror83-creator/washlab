@@ -1,0 +1,31 @@
+{
+  "name": "carwash-comparison",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": "22.x"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "data:pack": "node scripts/pack-repository-data.mjs",
+    "data:restore": "node scripts/restore-repository-data.mjs",
+    "build:data": "node scripts/build-carwash-data.mjs",
+    "sync:naver-local": "node scripts/sync-naver-local.mjs",
+    "collect:naver-reviews": "node scripts/collect-naver-reviews.mjs",
+    "generate:review-pages": "node scripts/generate-review-pages.mjs",
+    "clean": "node scripts/clean-dist.mjs",
+    "build": "npm run build:data && npm run clean && astro build",
+    "build:cloudflare": "npm run data:restore && npm run build",
+    "preview": "astro preview",
+    "check": "astro check"
+  },
+  "dependencies": {
+    "@astrojs/check": "^0.9.4",
+    "astro": "^5.0.0",
+    "typescript": "^5.6.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.105.0"
+  }
+}

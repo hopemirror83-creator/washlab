@@ -1,0 +1,351 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import AdSlot from '../../components/AdSlot.astro';
+import NaverMap from '../../components/NaverMap.astro';
+import { areaGroups, carwashes, typeGroups } from '../../data/siteData';
+
+export function getStaticPaths() {
+  const sampleTargets = [
+    {
+      sampleSlug: 'maxwash-lounge-sample-1',
+      name: '맥스워시라운지',
+      service: '셀프세차·실내세차',
+      title: '인천 계양구 맥스워시라운지 샘플페이지1',
+      searchTitle: '인천 계양구 맥스워시라운지 셀프세차·실내세차 맡기기 전 확인할 점',
+      angle: '실내형 셀프세차장과 자동세차, 손세차 가능 여부를 함께 비교하려는 분에게 맞춘 샘플입니다.',
+    },
+    {
+      sampleSlug: 'kingkong-namdong-sample-1',
+      name: '킹콩샤워 남동직영점',
+      service: '셀프세차·24시간 세차',
+      title: '킹콩샤워 남동직영점 샘플페이지1',
+      searchTitle: '인천 남동구 킹콩샤워 남동직영점 셀프세차 확인사항',
+      angle: '셀프세차장 이용 전 운영시간, 베이 구성, 실내세차 공간을 확인하려는 분에게 맞춘 샘플입니다.',
+    },
+    {
+      sampleSlug: 'bigwash-samsan-sample-1',
+      name: '빅워시 24시 셀프세차장 삼산점',
+      service: '24시 셀프세차',
+      title: '빅워시 24시 셀프세차장 삼산점 샘플페이지1',
+      searchTitle: '인천 부평구 삼산동 빅워시 24시 셀프세차장 이용 전 체크리스트',
+      angle: '야간이나 늦은 시간 셀프세차를 생각하는 분이 확인할 정보를 중심으로 정리한 샘플입니다.',
+    },
+    {
+      sampleSlug: 'kkumideun-unseo-sample-1',
+      name: '꿈이든세차장',
+      service: '세차·손세차 확인',
+      title: '인천 영종구 운서동 꿈이든세차장 샘플페이지1',
+      searchTitle: '인천 영종구 운서동 꿈이든세차장 방문 전 확인할 점',
+      angle: '영종도 운서동 주변에서 세차장을 찾을 때 주소, 영업 여부, 세부 시설을 먼저 확인하도록 만든 샘플입니다.',
+    },
+  ];
+  return sampleTargets.map((target) => {
+    const carwash = carwashes.find((item) => item.name === target.name);
+    if (!carwash) {
+      throw new Error(`Sample target not found: ${target.name}`);
+    }
+    return {
+      params: { slug: target.sampleSlug },
+      props: { target, carwash },
+    };
+  });
+}
+
+const { target, carwash } = Astro.props;
+const address = carwash.roadAddress || carwash.lotAddress;
+const originalUrl = `/carwash/${carwash.slug}/`;
+const areaUrl = getPrimaryAreaUrl(carwash);
+const typeUrl = getPrimaryTypeUrl(carwash);
+const relatedItems = getRelatedItems(carwash);
+const reviewRefs = Array.isArray(carwash.sourceRefs) ? carwash.sourceRefs : [];
+const pageTitle = `${target.title} | 워시랩`;
+const description = `${target.searchTitle}. 주소, 운영시간, 요금, 후기에서 볼 점과 손세차·실내세차·광택 확인사항을 비교형으로 정리했습니다.`;
+const expandedReview = getExpandedReview(target.sampleSlug);
+const schema = {
+  '@context': 'https://schema.org',
+  '@type': 'Article',
+  headline: target.searchTitle,
+  description,
+  about: {
+    '@type': 'LocalBusiness',
+    name: carwash.name,
+    address,
+    telephone: carwash.phone !== '정보 없음' ? carwash.phone : undefined,
+    url: new URL(originalUrl, Astro.site).toString(),
+  },
+};
+
+function getPrimaryAreaUrl(item: any) {
+  const exact = areaGroups.find((group: any) => group.items.some((entry: any) => entry.slug === item.slug));
+  return exact ? `/area/${exact.slug}/` : '/';
+}
+
+function getPrimaryTypeUrl(item: any) {
+  const exact = typeGroups.find((group: any) => group.items.some((entry: any) => entry.slug === item.slug));
+  return exact ? `/type/${exact.slug}/` : '/';
+}
+
+function getRelatedItems(item: any) {
+  const byDistrict = carwashes
+    .filter((entry: any) => entry.slug !== item.slug && entry.cityLabel === item.cityLabel && entry.district === item.district)
+    .sort((a: any, b: any) => Number(b.sourceCount || 0) - Number(a.sourceCount || 0));
+  const byCity = carwashes
+    .filter((entry: any) => entry.slug !== item.slug && entry.cityLabel === item.cityLabel)
+    .sort((a: any, b: any) => Number(b.rankScore || 0) - Number(a.rankScore || 0));
+  return uniqueBySlug([...byDistrict, ...byCity]).slice(0, 4);
+}
+
+function uniqueBySlug(items: any[]) {
+  const seen = new Set();
+  return items.filter((item) => {
+    if (seen.has(item.slug)) return false;
+    seen.add(item.slug);
+    return true;
+  });
+}
+
+function known(value: string) {
+  return value && value !== '정보 없음' && value !== '요금 정보 없음';
+}
+
+function getReviewSummary(item: any) {
+  if (item.hasReviews && item.sourceCount) {
+    return `네이버 블로그 후기가 ${item.sourceCount}건 확인됩니다. 제목을 보면 세차 공간, 실내 이용감, 24시간 운영 여부처럼 방문 전 참고할 만한 내용이 반복됩니다.`;
+  }
+  return '네이버 검색 후기는 아직 많지 않습니다. 방문 전에는 네이버 지도에 등록된 최신 사진과 업체 안내를 먼저 확인하는 편이 좋습니다.';
+}
+
+function getExpandedReview(sampleSlug: string) {
+  if (sampleSlug !== 'maxwash-lounge-sample-1') return null;
+  return {
+    intro:
+      '맥스워시라운지는 실내형 셀프세차장이라는 점이 가장 자주 언급됩니다. 블로그 글에서는 세차 베이, 드라잉 공간, 온수 개수대처럼 실제 이용 편의와 연결되는 이야기가 많이 보입니다.',
+    story: [
+      '여러 글에서 공통적으로 보이는 장점은 날씨 영향을 덜 받는 구조입니다. 여름에는 직사광선을 피하고, 겨울에는 찬바람을 덜 맞으면서 세차할 수 있다는 식의 의견이 있습니다. 실내 베이가 여러 개 있고 공간이 넓다는 언급도 있어, SUV나 카니발처럼 차체가 큰 차량을 세차하려는 분에게 참고가 됩니다.',
+      '세차 후 물기를 닦는 공간과 실내 청소 장비에 대한 언급도 꽤 보입니다. 실내와 야외 드라잉 공간, 에어건, 진공청소기 이야기가 함께 나오고, 온수 개수대나 매트 세척 관련 시설을 편하게 봤다는 글도 있습니다. 셀프세차를 하면서 외부 세차와 실내 정리를 한 번에 끝내려는 분이라면 이런 부분을 먼저 확인해볼 만합니다.',
+      '요금은 블로그 글 기준으로 고압수와 거품솔 기본요금 3,000원, 약 3분 30초 제공으로 소개된 글이 있습니다. 다만 폼건이나 하부세차는 시간이 더 빠르게 차감될 수 있다는 설명도 있어, 처음 방문한다면 현장 안내판을 보고 시작하는 편이 좋습니다. 주말이나 선선한 저녁에는 대기가 생길 수 있다는 의견도 있으니, 여유 있게 방문하는 쪽이 낫습니다.',
+    ],
+    positives: [
+      '실내형 세차장이라 계절과 날씨 영향을 덜 받는다는 의견이 있습니다.',
+      '세차 베이와 드라잉 공간이 넓다는 취지의 글이 보입니다.',
+      '온수 개수대, 진공청소기, 매트 세척 관련 시설을 언급한 후기가 있습니다.',
+      '기본 시간이 비교적 넉넉하다는 의견이 있습니다.',
+    ],
+    cautions: [
+      '주말이나 저녁 시간에는 대기가 생길 수 있습니다.',
+      '폼건, 하부세차는 기본 고압수와 시간 차감 방식이 다를 수 있습니다.',
+      '하부세차 가능 베이와 요금, 충전 혜택은 현장 안내 기준으로 다시 확인하는 것이 좋습니다.',
+    ],
+  };
+}
+---
+
+<BaseLayout title={pageTitle} description={description} schema={schema}>
+  <article>
+    <section class="page-head sample-page-head">
+      <p class="eyebrow">샘플페이지1</p>
+      <h1>{target.searchTitle}</h1>
+      <p>{target.angle} 기존 상세페이지는 그대로 두고, 정보형 상세페이지 구조를 비교하기 위한 별도 샘플입니다.</p>
+      <div class="cta-row">
+        <a class="primary-link" href={originalUrl}>기존 상세페이지 보기</a>
+        <a class="secondary-link" href={carwash.naverMapUrl} target="_blank" rel="noreferrer">네이버지도 보기</a>
+      </div>
+    </section>
+
+    <section class="decision-section section-tint">
+      <div class="sample-summary-grid">
+        <div>
+          <span>업체명</span>
+          <strong>{carwash.name}</strong>
+        </div>
+        <div>
+          <span>지역</span>
+          <strong>{carwash.areaLabel}</strong>
+        </div>
+        <div>
+          <span>분류</span>
+          <strong>{target.service}</strong>
+        </div>
+        <div>
+          <span>후기</span>
+          <strong>{carwash.hasReviews ? `블로그 ${carwash.sourceCount || 1}건` : '확인 필요'}</strong>
+        </div>
+      </div>
+    </section>
+
+    <AdSlot placement="top" />
+
+    <section class="decision-section sample-two-column">
+      <div>
+        <div class="section-heading">
+          <span>도입부</span>
+          <h2>{carwash.name}을 보기 전에 확인할 점</h2>
+        </div>
+        <div class="guide-prose">
+          <p>
+            세차장은 가격만 보고 고르기보다 차량 상태, 원하는 작업 범위, 예약 가능 여부를 함께 확인하는 것이 좋습니다.
+            {carwash.name}은 {carwash.areaLabel}에서 확인되는 {carwash.washType} 업체이며, 주소는 {address}입니다.
+            {known(carwash.weekdayHours) ? ` 현재 확인된 운영시간은 ${carwash.weekdayHours}입니다.` : ' 운영시간은 방문 전 네이버 지도나 업체 안내에서 다시 확인하는 편이 좋습니다.'}
+          </p>
+          <p>
+            특히 실내세차, 손세차, 광택·코팅 작업은 업체마다 포함 범위와 작업 시간이 다릅니다.
+            이 샘플 페이지는 {carwash.name}을 실제로 고르기 전에 어떤 항목을 비교하면 좋은지 중심으로 정리했습니다.
+          </p>
+        </div>
+      </div>
+      <aside class="sample-fact-card">
+        <h2>기본 정보</h2>
+        <dl>
+          <div><dt>주소</dt><dd>{address || '정보 없음'}</dd></div>
+          <div><dt>전화</dt><dd>{carwash.phone}</dd></div>
+          <div><dt>운영시간</dt><dd>{carwash.weekdayHours}</dd></div>
+          <div><dt>요금</dt><dd>{carwash.feeInfo}</dd></div>
+        </dl>
+      </aside>
+    </section>
+
+    <section class="decision-section section-tint">
+      <div class="section-heading">
+        <span>선택 기준</span>
+        <h2>{carwash.areaLabel}에서 {target.service}를 고를 때</h2>
+        <p>아래 항목은 업체를 고를 때 실제로 차이가 나는 부분입니다. 네이버 지도 사진, 업체 소식, 전화 문의로 한 번 더 확인하면 좋습니다.</p>
+      </div>
+      <div class="criteria-grid">
+        {[
+          ['기본 세차 범위', '외부 세척, 휠·타이어, 물기 제거, 왁스 포함 여부를 확인합니다.'],
+          ['실내세차 포함 범위', '매트, 시트 틈새, 송풍구, 트렁크까지 포함되는지 봅니다.'],
+          ['차종별 가격 차이', 'SUV, 대형차, 오염 상태에 따라 추가요금이 있는지 확인합니다.'],
+          ['예약과 대기', '주말이나 야간 이용은 대기 시간이 달라질 수 있습니다.'],
+          ['작업 시간', '셀프세차는 회전율, 손세차와 실내세차는 작업 시간을 따로 봐야 합니다.'],
+          ['후기에서 반복되는 말', '넓다, 빠르다, 친절하다, 대기가 있다 같은 반복 의견을 참고합니다.'],
+        ].map(([title, body]) => (
+          <article class="criteria-card">
+            <strong>{title}</strong>
+            <p>{body}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+
+    <section class="decision-section">
+      <div class="section-heading">
+        <span>주변 비교</span>
+        <h2>{carwash.areaLabel} 주변에서 같이 볼 만한 세차장</h2>
+        <p>{carwash.name}만 보고 결정하기보다, 같은 구 또는 인천 안에서 후기와 위치가 확인되는 업체를 함께 비교해 보세요.</p>
+      </div>
+      <div class="sample-comparison-grid">
+        <article class="sample-shop-card is-featured">
+          <span>현재 샘플</span>
+          <h3>{carwash.name}</h3>
+          <p>{carwash.hasReviews ? '블로그 후기가 확인되어 실제 이용 흐름을 참고하기 좋습니다.' : '후기 자료는 적지만 위치와 기본 정보 기준으로 확인할 수 있습니다.'}</p>
+          <a href={originalUrl}>기존 상세보기</a>
+        </article>
+        {relatedItems.map((item: any) => (
+          <article class="sample-shop-card">
+            <span>{item.areaLabel || item.district}</span>
+            <h3>{item.name}</h3>
+            <p>{item.hasReviews ? `블로그 후기 ${item.sourceCount || 1}건이 확인됩니다.` : `${item.washType} 기준으로 주변 비교 후보에 넣을 수 있습니다.`}</p>
+            <a href={`/carwash/${item.slug}/`}>상세보기</a>
+          </article>
+        ))}
+      </div>
+    </section>
+
+    <AdSlot placement="inArticle" />
+
+    <section class="decision-section">
+      <div class="section-heading">
+        <span>후기 요약</span>
+        <h2>네이버 블로그 후기는 이렇게 참고하세요</h2>
+      </div>
+      <div class="guide-prose">
+        <p>{getReviewSummary(carwash)}</p>
+        {expandedReview && <p>{expandedReview.intro}</p>}
+        {expandedReview?.story?.map((paragraph) => <p>{paragraph}</p>)}
+        <p>후기는 작성 시점의 경험이므로, 현재 운영시간과 요금, 장비 상태는 네이버 지도나 업체 안내를 함께 확인하는 것이 안전합니다.</p>
+      </div>
+      {expandedReview && (
+        <div class="sample-review-detail">
+          <article>
+            <h3>긍정 의견</h3>
+            <ul>
+              {expandedReview.positives.map((point) => <li>{point}</li>)}
+            </ul>
+          </article>
+          <article>
+            <h3>확인할 점</h3>
+            <ul>
+              {expandedReview.cautions.map((point) => <li>{point}</li>)}
+            </ul>
+          </article>
+        </div>
+      )}
+      {reviewRefs.length > 0 && (
+        <ul class="source-list sample-source-list">
+          {reviewRefs.slice(0, 5).map((source: { title?: string; link: string }) => (
+            <li><a href={source.link} target="_blank" rel="noreferrer">{source.title}</a></li>
+          ))}
+        </ul>
+      )}
+    </section>
+
+    <section class="decision-section section-tint">
+      <div class="section-heading">
+        <span>지도</span>
+        <h2>{carwash.name} 위치</h2>
+      </div>
+      <NaverMap
+        id={`sample-${target.sampleSlug}`}
+        name={carwash.name}
+        address={address}
+        lat={carwash.lat}
+        lng={carwash.lng}
+        mapx={carwash.mapx}
+        mapy={carwash.mapy}
+        naverMapUrl={carwash.naverMapUrl}
+      />
+    </section>
+
+    <section class="decision-section">
+      <div class="section-heading">
+        <span>FAQ</span>
+        <h2>{target.service} 자주 묻는 질문</h2>
+      </div>
+      <div class="faq-list">
+        <details open>
+          <summary>손세차와 자동세차는 어떤 차이가 있나요?</summary>
+          <p>자동세차는 빠르고 편한 편이지만 오염 부위별 세밀한 작업은 제한적일 수 있습니다. 손세차는 시간이 더 걸릴 수 있지만 휠, 틈새, 실내 등 세부 작업 범위를 확인하기 좋습니다.</p>
+        </details>
+        <details>
+          <summary>실내세차는 무엇을 확인해야 하나요?</summary>
+          <p>매트 세척, 시트 틈새, 송풍구, 트렁크 포함 여부를 먼저 확인하는 것이 좋습니다. 반려동물 털, 담배 냄새, 음식물 오염처럼 추가 작업이 필요한 경우 요금이 달라질 수 있습니다.</p>
+        </details>
+        <details>
+          <summary>광택과 유리막코팅은 꼭 같이 해야 하나요?</summary>
+          <p>차량 상태에 따라 다릅니다. 스크래치나 물때가 많다면 광택 작업 후 코팅을 상담하는 경우가 많고, 신차나 관리가 잘 된 차량은 코팅 중심으로 상담할 수도 있습니다.</p>
+        </details>
+        <details>
+          <summary>{carwash.name} 방문 전 가장 먼저 볼 것은 무엇인가요?</summary>
+          <p>주소, 운영시간, 요금표 사진, 최근 후기 순서로 확인하면 좋습니다. 전화번호가 없거나 요금 정보가 공개되어 있지 않다면 네이버 지도 문의 또는 업체 소식을 먼저 살펴보세요.</p>
+        </details>
+      </div>
+    </section>
+
+    <section class="decision-section section-tint">
+      <div class="section-heading">
+        <span>내부링크</span>
+        <h2>함께 보면 좋은 워시랩 페이지</h2>
+      </div>
+      <div class="link-ladder">
+        <a href={originalUrl}>{carwash.name} 기존 상세페이지</a>
+        <a href={areaUrl}>{carwash.areaLabel} 세차장 목록</a>
+        <a href={typeUrl}>{carwash.washType} 세차장</a>
+        <a href="/type/hand-carwash/">손세차장</a>
+        <a href="/type/auto-carwash/">자동세차장</a>
+        <a href="/type/interior-carwash/">실내세차장</a>
+      </div>
+    </section>
+
+    <AdSlot placement="bottom" />
+  </article>
+</BaseLayout>

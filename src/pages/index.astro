@@ -1,0 +1,293 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import AdSlot from '../components/AdSlot.astro';
+import { domainConfig } from '../data/domainConfig';
+import { areaGroups, carwashes, typeGroups } from '../data/siteData';
+import { keywordPages } from '../data/keywordPages';
+import { guidePages } from '../data/guidePages';
+
+const cityOrder = ['인천', '서울', '경기', '부산', '대구', '대전', '광주', '울산', '세종', '강원', '충북', '충남', '전북', '전남', '경북', '경남', '제주'];
+const cityGroups = cityOrder
+  .map((city) => areaGroups.find((group) => group.type === 'city' && group.name.startsWith(city)))
+  .filter(Boolean);
+const districtGroupsByCity = Object.fromEntries(
+  cityOrder.map((city) => [
+    city,
+    areaGroups
+      .filter((group) => group.type === 'district' && group.name.startsWith(`${city} `))
+      .sort((a, b) => b.items.length - a.items.length || a.name.localeCompare(b.name, 'ko')),
+  ]),
+);
+const cityCounts = carwashes.reduce((acc, item) => {
+  acc[item.cityLabel] = (acc[item.cityLabel] || 0) + 1;
+  return acc;
+}, {});
+const totalCount = carwashes.length;
+const title = '워시랩 - 전국 세차장 추천 비교: 셀프세차, 손세차, 자동세차';
+const description = `전국 ${totalCount.toLocaleString('ko-KR')}곳의 세차장을 지역별로 정리했습니다. 셀프세차장, 자동세차, 손세차, 노터치세차, 24시간 여부와 네이버 지도, 블로그 후기를 함께 비교할 수 있습니다.`;
+const featuredCarwashes = pickFeaturedCarwashes(carwashes, cityOrder, 18);
+const featuredKeywords = keywordPages.slice(0, 18);
+const searchItems = [
+  ...areaGroups.map((group) => ({
+    type: '지역',
+    title: group.title,
+    subtitle: `${group.items.length}곳`,
+    href: `/area/${group.slug}/`,
+    keywords: `${group.name} ${group.description}`,
+  })),
+  ...typeGroups.map((group) => ({
+    type: '유형',
+    title: group.title,
+    subtitle: `${group.items.length}곳`,
+    href: `/type/${group.slug}/`,
+    keywords: `${group.name} ${group.description}`,
+  })),
+  ...keywordPages.map((page) => ({
+    type: '검색어',
+    title: page.keyword,
+    subtitle: '위치, 요금, 후기 비교',
+    href: `/keyword/${page.slug}/`,
+    keywords: `${page.keyword} ${page.description}`,
+  })),
+  ...guidePages.map((page) => ({
+    type: '가이드',
+    title: page.name,
+    subtitle: page.title,
+    href: `/guide/${page.slug}/`,
+    keywords: `${page.name} ${page.description}`,
+  })),
+  ...carwashes.map((item) => ({
+    type: '세차장',
+    title: item.name,
+    subtitle: item.roadAddress || item.lotAddress,
+    href: `/carwash/${item.slug}/`,
+    keywords: `${item.name} ${item.cityLabel} ${item.district} ${item.dong} ${item.category} ${item.washType} ${item.serviceLabels.join(' ')}`,
+  })),
+];
+const schema = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: domainConfig.siteName,
+  url: Astro.site,
+  potentialAction: {
+    '@type': 'SearchAction',
+    target: `${Astro.site}search?q={search_term_string}`,
+    'query-input': 'required name=search_term_string',
+  },
+};
+
+function pickFeaturedCarwashes(items: any[], cities: string[], limit: number) {
+  const picked: any[] = [];
+  const used = new Set<string>();
+
+  for (const city of cities) {
+    const item = items
+      .filter((carwash) => carwash.cityLabel === city)
+      .sort((a, b) => (b.sourceCount || 0) - (a.sourceCount || 0) || (b.rankScore || 0) - (a.rankScore || 0))[0];
+    if (item) {
+      picked.push(item);
+      used.add(item.slug);
+    }
+  }
+
+  for (const item of [...items].sort((a, b) => (b.sourceCount || 0) - (a.sourceCount || 0) || (b.rankScore || 0) - (a.rankScore || 0))) {
+    if (picked.length >= limit) break;
+    if (!used.has(item.slug)) {
+      picked.push(item);
+      used.add(item.slug);
+    }
+  }
+
+  return picked.slice(0, limit);
+}
+---
+
+<BaseLayout title={title} description={description} schema={schema}>
+  <section class="hero">
+    <div class="hero-copy">
+      <p class="eyebrow">세차장 데이터 정리</p>
+      <h1>전국 세차장</h1>
+      <p>{description}</p>
+    </div>
+
+    <form class="search-panel" role="search" aria-label="세차장 검색">
+      <label for="site-search">지역, 구/시군, 동네, 세차장명 검색</label>
+      <div class="search-box">
+        <input id="site-search" type="search" autocomplete="off" placeholder={domainConfig.primarySearchPlaceholder} />
+        <button type="submit">검색</button>
+      </div>
+      <div id="search-results" class="search-results" aria-live="polite"></div>
+    </form>
+
+    <div class="popular-strip" aria-label="주요 지역 바로가기">
+      {cityGroups.slice(0, 10).map((area: any) => (
+        <a href={`/area/${area.slug}/`}>{area.name.replace(' 세차장', '')}</a>
+      ))}
+    </div>
+  </section>
+
+  <AdSlot placement="top" />
+
+  <section class="decision-section section-tint">
+    <div class="section-heading">
+      <span>지역 묶음</span>
+      <h2>전국 시도별 세차장</h2>
+      <p>먼저 시도를 고른 뒤, 구/시군 페이지에서 해당 지역 세차장을 비교할 수 있습니다.</p>
+    </div>
+    <div class="topic-grid">
+      {cityGroups.map((area: any) => (
+        <a class="topic-card" href={`/area/${area.slug}/`}>
+          <strong>{area.name}</strong>
+          <span>{(cityCounts[area.name.replace(' 세차장', '')] || area.items.length).toLocaleString('ko-KR')}곳 정리</span>
+        </a>
+      ))}
+    </div>
+  </section>
+
+  <section class="decision-section">
+    <div class="section-heading">
+      <span>계층별 보기</span>
+      <h2>시도별 구/시군 바로가기</h2>
+      <p>인천을 열면 서구, 연수구, 계양구처럼 하위 지역이 나오고, 각 구/시군 페이지에서 개별 세차장 목록과 지도를 볼 수 있습니다.</p>
+    </div>
+    <div class="region-tree">
+      {cityGroups.map((cityGroup: any) => {
+        const city = cityGroup.name.replace(' 세차장', '');
+        const districts = districtGroupsByCity[city] || [];
+        return (
+          <details class="region-node">
+            <summary>
+              <span>{city}</span>
+              <small>{districts.length}개 지역 · {cityGroup.items.length.toLocaleString('ko-KR')}곳</small>
+            </summary>
+            <div class="district-links">
+              <a class="city-link" href={`/area/${cityGroup.slug}/`}>{city} 대표 페이지</a>
+              {districts.map((district: any) => (
+                <a href={`/area/${district.slug}/`}>
+                  <strong>{district.name.replace(' 세차장', '')}</strong>
+                  <span>{district.items.length}곳</span>
+                </a>
+              ))}
+            </div>
+          </details>
+        );
+      })}
+    </div>
+  </section>
+
+  <AdSlot placement="inArticle" />
+
+  <section class="decision-section section-tint">
+    <div class="section-heading">
+      <span>유형 묶음</span>
+      <h2>셀프세차, 자동세차, 손세차, 24시간 세차장</h2>
+      <p>네이버 지도 카테고리와 검색 결과를 기준으로 이용 목적별 묶음 페이지를 만들었습니다.</p>
+    </div>
+    <div class="topic-grid">
+      {typeGroups.map((group) => (
+        <a class="topic-card" href={`/type/${group.slug}/`}>
+          <strong>{group.name}</strong>
+          <span>{group.items.length.toLocaleString('ko-KR')}곳</span>
+        </a>
+      ))}
+    </div>
+  </section>
+
+  <section class="decision-section">
+    <div class="section-heading">
+      <span>검색 키워드</span>
+      <h2>실제 검색어로 찾는 세차장</h2>
+      <p>노브러쉬 자동세차, 실내세차 가격, 손세차 추천처럼 실제 유입이 있는 표현을 따로 정리했습니다.</p>
+    </div>
+    <div class="topic-grid">
+      {featuredKeywords.map((page) => (
+        <a class="topic-card" href={`/keyword/${page.slug}/`}>
+          <strong>{page.keyword}</strong>
+          <span>위치, 요금, 후기 비교</span>
+        </a>
+      ))}
+    </div>
+  </section>
+
+  <section class="decision-section section-tint">
+    <div class="section-heading">
+      <span>서비스 가이드</span>
+      <h2>세차 방식별 선택 기준</h2>
+      <p>손세차, 셀프세차, 자동세차, 노터치세차, 실내세차처럼 목적별로 먼저 확인할 점을 정리했습니다.</p>
+    </div>
+    <div class="topic-grid">
+      {guidePages.map((page) => (
+        <a class="topic-card" href={`/guide/${page.slug}/`}>
+          <strong>{page.name}</strong>
+          <span>{page.title}</span>
+        </a>
+      ))}
+    </div>
+  </section>
+
+  <section class="decision-section">
+    <div class="section-heading">
+      <span>세차장 상세</span>
+      <h2>전국 주요 세차장 먼저 보기</h2>
+      <p>각 지역에서 후기와 검색 정보가 확인되는 세차장을 우선 골라 보여드립니다.</p>
+    </div>
+    <div class="shop-grid">
+      {featuredCarwashes.map((item) => (
+        <a class="shop-card" href={`/carwash/${item.slug}/`}>
+          <div>
+            <strong>{item.name}</strong>
+            <span>{item.areaLabel || item.dong || item.cityLabel} · {item.category}</span>
+          </div>
+          <p>{item.roadAddress || item.lotAddress}</p>
+          <div class="tag-row">
+            {item.serviceLabels.slice(0, 4).map((label: string) => <span>{label}</span>)}
+          </div>
+        </a>
+      ))}
+    </div>
+  </section>
+
+  <AdSlot placement="bottom" />
+
+  <script define:vars={{ searchItems }} is:inline>
+    const input = document.querySelector('#site-search');
+    const form = document.querySelector('.search-panel');
+    const results = document.querySelector('#search-results');
+    const items = searchItems;
+
+    function renderResults(query) {
+      const normalized = query.trim().toLowerCase();
+      if (!normalized) {
+        results.classList.remove('is-open');
+        results.innerHTML = '';
+        return;
+      }
+
+      const matches = items
+        .filter((item) => `${item.title} ${item.subtitle} ${item.keywords}`.toLowerCase().includes(normalized))
+        .slice(0, 8);
+
+      results.innerHTML = matches.length
+        ? matches
+            .map(
+              (item) => `
+              <a href="${item.href}">
+                <span>${item.type}</span>
+                <strong>${item.title}</strong>
+                <small>${item.subtitle}</small>
+              </a>
+            `,
+            )
+            .join('')
+        : '<p class="empty-search">검색 결과가 없습니다. 동네명이나 세차장명을 바꿔보세요.</p>';
+      results.classList.add('is-open');
+    }
+
+    input?.addEventListener('input', (event) => renderResults(event.target.value));
+    form?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const firstResult = results.querySelector('a');
+      if (firstResult) window.location.href = firstResult.href;
+    });
+  </script>
+</BaseLayout>

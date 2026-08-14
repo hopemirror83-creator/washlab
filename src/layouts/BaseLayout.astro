@@ -1,0 +1,81 @@
+---
+import '../styles/global.css';
+import { domainConfig } from '../data/domainConfig';
+
+interface Props {
+  title: string;
+  description: string;
+  schema?: Record<string, unknown>;
+  noindex?: boolean;
+}
+
+const { title, description, schema, noindex = false } = Astro.props;
+const canonical = new URL(Astro.url.pathname, Astro.site);
+const adsenseClient = import.meta.env.PUBLIC_ADSENSE_CLIENT || 'ca-pub-2849585811939559';
+const schemaMarkup = schema
+  ? `<script type="application/ld+json">${JSON.stringify(schema).replace(/</g, '\\u003c')}</script>`
+  : '';
+---
+
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="description" content={description} />
+    {noindex && <meta name="robots" content="noindex, nofollow" />}
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="theme-color" content="#006b63" />
+    <meta name="naver-site-verification" content="70af11ffc3ba2d955335c5f17a1850c37658bb72" />
+    <meta name="google-site-verification" content="bLNkE5R1A2WDcIu22lXsObPTeMIBOGa7tVmQXGTZvZg" />
+    <link rel="canonical" href={canonical} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={domainConfig.siteName} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    {adsenseClient && (
+      <script is:inline async src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${adsenseClient}`} crossorigin="anonymous"></script>
+    )}
+    <title>{title}</title>
+    <Fragment set:html={schemaMarkup} />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="워시랩 홈으로 이동">{domainConfig.siteName}</a>
+      <nav aria-label="주요 메뉴">
+        {domainConfig.nav.map((item) => <a href={item.href}>{item.label}</a>)}
+      </nav>
+    </header>
+    <main>
+      <slot />
+    </main>
+    <footer class="site-footer">
+      <div class="footer-brand-row">
+        <strong>{domainConfig.siteName}</strong>
+        <span>운영자: 스토리앤</span>
+        <span>문의: <a href="mailto:storyuman@gmail.com">storyuman@gmail.com</a></span>
+        <span>사업자등록번호: 409-58-00440</span>
+      </div>
+      <nav class="footer-links" aria-label="사이트 안내">
+        <a href="/about/">운영자 안내</a>
+        <a href="/privacy/">개인정보처리방침</a>
+        <a href="/correction/">정보 정정 요청</a>
+      </nav>
+      <p>
+        세차장 위치, 운영시간, 요금, 시설 정보를 정리합니다. 현장 사정에 따라 달라질 수 있으니 방문 전 네이버 지도나 업체 안내를 한 번 더 확인해 주세요.
+      </p>
+    </footer>
+    <script is:inline type="text/javascript" src="//wcs.pstatic.net/wcslog.js"></script>
+    <script is:inline type="text/javascript">
+      if(!wcs_add) var wcs_add = {};
+      wcs_add["wa"] = "24a0e83bbf79180";
+      if(window.wcs) {
+        wcs_do();
+      }
+    </script>
+  </body>
+</html>

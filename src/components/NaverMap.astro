@@ -1,0 +1,114 @@
+---
+interface Props {
+  id: string;
+  name: string;
+  address?: string;
+  lat?: number;
+  lng?: number;
+  mapx?: number;
+  mapy?: number;
+  naverMapUrl: string;
+}
+
+const { id, name, address, lat, lng, mapx, mapy, naverMapUrl } = Astro.props;
+const clientId = import.meta.env.PUBLIC_NAVER_MAP_CLIENT_ID || 'w90ehbsu50';
+const latitude = Number(lat) || (Number(mapy) ? Number(mapy) / 10000000 : 0);
+const longitude = Number(lng) || (Number(mapx) ? Number(mapx) / 10000000 : 0);
+const hasCoords = Boolean(latitude && longitude);
+const mapId = `naver-map-${id.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 48)}`;
+const mapPayload = JSON.stringify({
+  mapId,
+  clientId,
+  marker: {
+    name,
+    address,
+    latitude,
+    longitude,
+    naverMapUrl,
+  },
+  hasCoords,
+}).replace(/</g, '\\u003c');
+---
+
+<div class="naver-map-wrap single-map-wrap">
+  <div class="naver-map" id={mapId}>
+    {!hasCoords && (
+      <div class="map-fallback">
+        <strong>{address || name}</strong>
+        <span>지도 좌표가 없어 네이버 지도에서 위치를 바로 확인해 주세요.</span>
+      </div>
+    )}
+  </div>
+  <div class="map-actions">
+    <strong>{address || name}</strong>
+    <a class="primary-link" href={naverMapUrl} target="_blank" rel="noreferrer">네이버 지도에서 보기</a>
+  </div>
+</div>
+
+{hasCoords && (
+  <script is:inline define:vars={{ mapPayload }}>
+    (() => {
+      const payload = JSON.parse(mapPayload);
+
+      window.__washlabNaverMapLoader =
+        window.__washlabNaverMapLoader ||
+        new Promise((resolve, reject) => {
+          if (window.naver?.maps) {
+            resolve();
+            return;
+          }
+          const script = document.createElement('script');
+          script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${payload.clientId}`;
+          script.async = true;
+          script.onload = resolve;
+          script.onerror = reject;
+          document.head.appendChild(script);
+        });
+
+      window.__washlabNaverMapLoader
+        .then(() => {
+          const target = document.getElementById(payload.mapId);
+          if (!target || !window.naver?.maps) return;
+
+          const item = payload.marker;
+          const position = new naver.maps.LatLng(item.latitude, item.longitude);
+          const map = new naver.maps.Map(target, {
+            center: position,
+            zoom: 16,
+            scaleControl: true,
+            mapDataControl: false,
+            zoomControl: true,
+            zoomControlOptions: {
+              position: naver.maps.Position.TOP_RIGHT,
+            },
+          });
+
+          const marker = new naver.maps.Marker({
+            position,
+            map,
+            title: item.name,
+          });
+
+          const info = new naver.maps.InfoWindow({
+            content: `<div class="map-info-window"><strong>${item.name}</strong><span>${item.address || ''}</span><a href="${item.naverMapUrl}" target="_blank" rel="noreferrer">네이버 지도에서 보기</a></div>`,
+          });
+
+          naver.maps.Event.addListener(marker, 'click', () => {
+            window.open(item.naverMapUrl, '_blank', 'noopener,noreferrer');
+          });
+
+          naver.maps.Event.addListener(map, 'click', () => {
+            if (info.getMap()) info.close();
+          });
+
+          info.open(map, marker);
+        })
+        .catch(() => {
+          const target = document.getElementById(payload.mapId);
+          if (!target) return;
+          const item = payload.marker;
+          target.innerHTML = `<div class="map-fallback"><strong>${item.address || item.name}</strong><span>지도를 불러오지 못했습니다. 네이버 지도에서 위치를 확인해 주세요.</span><a class="primary-link" href="${item.naverMapUrl}" target="_blank" rel="noreferrer">네이버 지도에서 보기</a></div>`;
+        });
+    })();
+  </script>
+)}

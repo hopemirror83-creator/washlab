@@ -1,0 +1,449 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import AdSlot from '../../components/AdSlot.astro';
+import NaverMap from '../../components/NaverMap.astro';
+import { getIncheonDetailEnhancement } from '../../data/incheonDetailEnhancements';
+import { areaGroups, carwashes, typeGroups } from '../../data/siteData';
+
+export function getStaticPaths() {
+  return carwashes.map((carwash) => ({
+    params: { slug: carwash.slug },
+    props: { carwash },
+  }));
+}
+
+const { carwash } = Astro.props;
+const relatedAreas = areaGroups.filter((group) => group.items.some((item: any) => item.slug === carwash.slug));
+const relatedTypes = typeGroups.filter((group) => group.items.some((item: any) => item.slug === carwash.slug));
+const hasPremiumAiReview = /gemini|vertex/i.test(String(carwash.aiProvider || ''));
+const incheonEnhancement = hasPremiumAiReview ? null : getIncheonDetailEnhancement(carwash);
+const pageUrl = new URL(Astro.url.pathname, Astro.site).toString();
+const address = carwash.roadAddress || carwash.lotAddress;
+const localityLabel = carwash.areaLabel || [carwash.cityLabel, carwash.district, carwash.dong].filter(Boolean).join(' ') || '세차장';
+const sourceRefs = Array.isArray(carwash.sourceRefs) && carwash.sourceRefs.length > 0
+    ? carwash.sourceRefs
+    : (carwash.sourceLinks || []).map((link: string, index: number) => ({ title: `네이버 블로그 후기 ${index + 1}`, link }));
+const clickPrioritySlugs = new Set(
+  [...carwashes]
+    .sort((a: any, b: any) =>
+      Number(b.sourceCount || 0) * 10 + Number(b.rankScore || 0) - (Number(a.sourceCount || 0) * 10 + Number(a.rankScore || 0)),
+    )
+    .slice(0, 100)
+    .map((item: any) => item.slug),
+);
+const isClickPriority = clickPrioritySlugs.has(carwash.slug);
+const searchSignals = Array.isArray(carwash.querySignals) ? carwash.querySignals.slice(0, 4) : [];
+const priorityNotes = buildPriorityNotes(carwash, sourceRefs, searchSignals);
+const reviewDesignSampleNames = new Set([
+  '워시존 개러지 간석점',
+  '킹콩샤워 남동직영점',
+  '세차파트너 인천점',
+  '코스모셀프세차타운 만수점',
+  '구월카손세차',
+]);
+const isReviewDesignSample = true;
+const allReviewParagraphs = splitReviewText(
+  incheonEnhancement ? incheonEnhancement.review.join('\n\n') : carwash.reviewSection,
+);
+const reviewNoticeParagraphs = allReviewParagraphs.filter(isReviewNoticeParagraph);
+const reviewParagraphs = allReviewParagraphs.filter((paragraph: string) => !isReviewNoticeParagraph(paragraph));
+const reviewNoticeParagraph = reviewNoticeParagraphs[0] || '';
+const reviewHighlights = buildReviewHighlights(carwash, reviewParagraphs);
+const schema = {
+  '@context': 'https://schema.org',
+  '@type': 'LocalBusiness',
+  '@id': `${pageUrl}#localbusiness`,
+  name: carwash.name,
+  description: carwash.metaDescription,
+  url: pageUrl,
+  telephone: carwash.phone !== '정보 없음' ? carwash.phone : undefined,
+  address: {
+    '@type': 'PostalAddress',
+    streetAddress: address,
+    addressLocality: carwash.district || carwash.cityLabel || '서울·인천',
+    addressRegion: carwash.city || carwash.cityLabel || 'KR',
+    addressCountry: 'KR',
+  },
+  geo:
+    carwash.lat && carwash.lng
+      ? {
+          '@type': 'GeoCoordinates',
+          latitude: carwash.lat,
+          longitude: carwash.lng,
+        }
+      : undefined,
+  priceRange: carwash.feeInfo !== '요금 정보 없음' ? carwash.feeInfo : undefined,
+  additionalProperty: [
+    { '@type': 'PropertyValue', name: '세차유형', value: carwash.washType },
+    { '@type': 'PropertyValue', name: '사업장업종', value: carwash.category },
+    { '@type': 'PropertyValue', name: '평일운영시간', value: carwash.weekdayHours },
+    { '@type': 'PropertyValue', name: '휴일운영시간', value: carwash.holidayHours },
+  ],
+};
+
+function buildPriorityNotes(carwash: any, refs: any[], signals: string[]) {
+  const notes = [];
+  if (refs.length > 0) notes.push(`네이버 블로그 후기 ${refs.length}건을 참고해 방문 분위기를 정리했습니다.`);
+  if (signals.length > 0) notes.push(`${signals.slice(0, 2).join(', ')} 같은 검색어로 함께 살펴볼 수 있습니다.`);
+  if (carwash.weekdayHours && carwash.weekdayHours !== '정보 없음') notes.push(`운영시간은 ${carwash.weekdayHours} 기준으로 표시되어 있습니다.`);
+  if (carwash.phone && carwash.phone !== '정보 없음') notes.push(`전화번호가 등록되어 있어 방문 전 문의가 비교적 쉽습니다.`);
+  if ((carwash.serviceLabels || []).length > 0) notes.push(`${carwash.serviceLabels.slice(0, 3).join(', ')} 항목을 먼저 확인해 보세요.`);
+  return notes.slice(0, 4);
+}
+
+function splitReviewText(value: string) {
+  const blocks = String(value || '')
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+
+  return blocks.flatMap(splitReadableParagraph);
+}
+
+function splitReadableParagraph(paragraph: string) {
+  const text = paragraph.replace(/\s+/g, ' ').trim();
+  if (text.length <= 280) return [text];
+
+  const sentences = text
+    .match(/[^.!?。！？]+[.!?。！？]+|[^.!?。！？]+$/g)
+    ?.map((sentence) => sentence.trim())
+    .filter(Boolean) || [text];
+
+  const chunks: string[] = [];
+  let current = '';
+
+  for (const sentence of sentences) {
+    const next = current ? `${current} ${sentence}` : sentence;
+    const sentenceCount = next.split(/[.!?。！？]+/).filter((part) => part.trim()).length;
+
+    if (current && (next.length > 330 || sentenceCount > 4)) {
+      chunks.push(current);
+      current = sentence;
+    } else {
+      current = next;
+    }
+  }
+
+  if (current) chunks.push(current);
+  return chunks;
+}
+
+function isReviewNoticeParagraph(paragraph: string) {
+  const text = String(paragraph || '').replace(/\s+/g, ' ').trim();
+  return (
+    text.includes('\uB124\uC774\uBC84 \uBE14\uB85C\uADF8\uC758 \uD6C4\uAE30\uB97C \uBAA8\uC740 \uBD84\uC11D') ||
+    text.includes('\uC2E4\uC81C \uC0C1\uD669\uC740 \uB2EC\uB77C\uC84C\uC744 \uC218') ||
+    text.includes('\uBC29\uBB38 \uC804\uC5D0\uB294 \uC5C5\uCCB4 \uC548\uB0B4') ||
+    text.includes('\uB124\uC774\uBC84 \uC9C0\uB3C4 \uCD5C\uC2E0 \uC815\uBCF4')
+  );
+}
+
+function buildReviewHighlights(carwash: any, paragraphs: string[]) {
+  const text = paragraphs.join(' ');
+  const cards = [];
+  if (carwash.sourceCount) {
+    cards.push({
+      label: '후기 수',
+      value: `블로그 ${carwash.sourceCount}건`,
+      tone: 'blue',
+      body: '여러 글에서 반복되는 표현을 중심으로 분위기를 정리했습니다.',
+    });
+  }
+  if (/실내|따뜻|날씨|겨울|여름|쾌적/.test(text)) {
+    cards.push({
+      label: '이용 분위기',
+      value: '실내·쾌적 언급',
+      tone: 'mint',
+      body: '날씨 영향을 덜 받거나 편하게 이용했다는 표현이 보입니다.',
+    });
+  }
+  if (/무제한|시간|예약|앱|대기/.test(text)) {
+    cards.push({
+      label: '확인 포인트',
+      value: '시간·예약 확인',
+      tone: 'amber',
+      body: '이용 방식과 대기 여부는 방문 시간대에 따라 달라질 수 있습니다.',
+    });
+  }
+  if (/하부|진공|폼|프리워시|베이|드라잉|타월|용품/.test(text)) {
+    cards.push({
+      label: '시설 단서',
+      value: '장비 언급 있음',
+      tone: 'green',
+      body: '세차 베이와 장비 구성은 사진과 현장 안내를 함께 보면 좋습니다.',
+    });
+  }
+  return cards.slice(0, 4);
+}
+
+function reviewParagraphTitle(index: number, paragraph: string) {
+  if (/요금|가격|무제한|시간제|기본/.test(paragraph)) return '요금과 이용 방식';
+  if (/위치|간석역|지도|찾기|접근/.test(paragraph)) return '위치와 방문 팁';
+  if (/장비|프리워시|하부|베이|진공|타월|용품|예약/.test(paragraph)) return '시설과 준비물';
+  if (/실내|따뜻|겨울|여름|날씨|쾌적/.test(paragraph)) return '후기에서 보이는 분위기';
+  return ['전체 분위기', '이용 흐름', '방문 전 참고할 점', '정리'][index] || '후기 정리';
+}
+---
+
+<BaseLayout title={carwash.title} description={carwash.metaDescription} schema={schema}>
+  <article>
+    <section class="page-head">
+      <p class="eyebrow">{localityLabel} 세차장</p>
+      <h1>{carwash.title}</h1>
+      <p>{carwash.metaDescription}</p>
+      <div class="cta-row">
+        <a class="primary-link" href={carwash.naverMapUrl} target="_blank" rel="noreferrer">네이버 지도 바로가기</a>
+      </div>
+    </section>
+
+    <section class="decision-section section-tint">
+      <div class="info-grid" aria-label="기본정보">
+        <div>
+          <span>사업장명</span>
+          <strong>{carwash.name}</strong>
+        </div>
+        <div>
+          <span>주소</span>
+          <strong>{address || '정보 없음'}</strong>
+        </div>
+        <div>
+          <span>전화번호</span>
+          <strong>{carwash.phone}</strong>
+        </div>
+        <div>
+          <span>세차유형</span>
+          <strong>{carwash.washType}</strong>
+        </div>
+        <div>
+          <span>평일 운영시간</span>
+          <strong>{carwash.weekdayHours}</strong>
+        </div>
+        <div>
+          <span>휴일 운영시간</span>
+          <strong>{carwash.holidayHours}</strong>
+        </div>
+        <div>
+          <span>요금 정보</span>
+          <strong>{carwash.feeInfo}</strong>
+        </div>
+        <div>
+          <span>데이터 기준일</span>
+          <strong>{carwash.dataBaseDate || '정보 없음'}</strong>
+        </div>
+      </div>
+    </section>
+
+    {isClickPriority && (
+      <section class="decision-section">
+        <div class="section-heading">
+          <span>검색자 요약</span>
+          <h2>{carwash.name} 먼저 볼 포인트</h2>
+          <p>검색에서 많이 찾을 가능성이 높은 업체라, 방문자가 빠르게 판단할 수 있는 정보만 따로 모았습니다.</p>
+        </div>
+        <div class="priority-summary-grid">
+          {priorityNotes.map((note: string) => (
+            <article>
+              <strong>{note}</strong>
+            </article>
+          ))}
+        </div>
+      </section>
+    )}
+
+    <AdSlot placement="top" />
+
+    <section class="decision-section">
+      <div class="section-heading">
+        <span>기본정보</span>
+        <h2>{carwash.name} 위치와 이용 개요</h2>
+      </div>
+      <div class="guide-prose">
+        {incheonEnhancement ? incheonEnhancement.basic.map((paragraph: string) => <p>{paragraph}</p>) : <p>{carwash.introSection}</p>}
+      </div>
+    </section>
+
+    <section class="decision-section section-tint">
+      <div class="section-heading">
+        <span>시설 정보</span>
+        <h2>확인된 세차장 특징</h2>
+      </div>
+      <div class="tag-row service-tags">
+        {carwash.serviceLabels.map((label: string) => <span class="enabled">{label}</span>)}
+      </div>
+      {incheonEnhancement && (
+        <div class="answer-grid detail-answer-grid" aria-label="방문 전 확인된 정보">
+          {incheonEnhancement.answerCards.map((card) => (
+            <article>
+              <span>{card.label}</span>
+              <strong>{card.value}</strong>
+              <p>{card.note}</p>
+            </article>
+          ))}
+        </div>
+      )}
+      <div class="guide-prose">
+        {incheonEnhancement ? incheonEnhancement.facility.map((paragraph: string) => <p>{paragraph}</p>) : <p>{carwash.facilitySection}</p>}
+      </div>
+    </section>
+
+    <AdSlot placement="inArticle" />
+
+    <section class="decision-section">
+      <div class="section-heading">
+        <span>후기 요약</span>
+        <h2>네이버 블로그 후기</h2>
+      </div>
+      {isReviewDesignSample ? (
+        <div class="review-redesign">
+          {reviewHighlights.length > 0 && (
+            <div class="review-highlight-grid" aria-label="후기 핵심 요약">
+              {reviewHighlights.map((item) => (
+                <article class={`review-highlight-card tone-${item.tone}`}>
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                  <p>{item.body}</p>
+                </article>
+              ))}
+            </div>
+          )}
+          <div class="review-story-cards">
+            {reviewParagraphs.map((paragraph: string, index: number) => (
+              <article class="review-story-card">
+                <span>{String(index + 1).padStart(2, '0')}</span>
+                <div>
+                  <h3>{reviewParagraphTitle(index, paragraph)}</h3>
+                  <p>{paragraph}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+          {reviewNoticeParagraph && (
+            <p class="review-source-note">{reviewNoticeParagraph}</p>
+          )}
+        </div>
+      ) : (
+        <div class="guide-prose">
+          {incheonEnhancement ? incheonEnhancement.review.map((paragraph: string) => <p>{paragraph}</p>) : <p>{carwash.reviewSection}</p>}
+        </div>
+      )}
+      {incheonEnhancement ? (
+        <div class="review-points">
+          <article>
+            <h3>긍정 의견</h3>
+            <ul>
+              {incheonEnhancement.positivePoints.map((point: string) => <li>{point}</li>)}
+            </ul>
+          </article>
+          <article>
+            <h3>확인할 점</h3>
+            <ul>
+              {incheonEnhancement.cautionPoints.map((point: string) => <li>{point}</li>)}
+            </ul>
+          </article>
+        </div>
+      ) : carwash.positivePoints?.length > 0 && (
+        <div class="review-points">
+          <article>
+            <h3>긍정 의견</h3>
+            <ul>
+              {carwash.positivePoints.map((point: string) => <li>{point}</li>)}
+            </ul>
+          </article>
+          <article>
+            <h3>확인할 점</h3>
+            <ul>
+              {carwash.cautionPoints.map((point: string) => <li>{point}</li>)}
+            </ul>
+          </article>
+        </div>
+      )}
+    </section>
+
+    <section class="decision-section section-tint">
+      <div class="section-heading">
+        <span>현장 확인 메모</span>
+        <h2>방문 전 확인할 점</h2>
+      </div>
+      <div class="guide-prose">
+        {incheonEnhancement ? (
+          <>
+            <p>
+              이 내용은 네이버 블로그의 후기를 모은 분석으로 실제 상황은 달라졌을 수 있으니, 방문 전에 업체 쪽에 확인해 보시는 것도 좋을 것 같습니다.
+            </p>
+            <p>
+              특히 운영시간, 요금, 세차 코스, 하부세차나 실내세차 포함 여부는 방문 시점에 따라 달라질 수 있습니다. 지도 사진과 최근 후기를 함께 보면 실패 확률을 줄일 수 있습니다.
+            </p>
+          </>
+        ) : <p>{carwash.fieldCheckSection}</p>}
+      </div>
+    </section>
+
+    <section class="decision-section">
+      <div class="section-heading">
+        <span>지도</span>
+        <h2>{carwash.name} 위치</h2>
+      </div>
+      <NaverMap
+        id={carwash.slug}
+        name={carwash.name}
+        address={address}
+        lat={carwash.lat}
+        lng={carwash.lng}
+        mapx={carwash.mapx}
+        mapy={carwash.mapy}
+        naverMapUrl={carwash.naverMapUrl}
+      />
+      <div class="map-box legacy-map-box">
+        <div>
+          <strong>{address || carwash.name}</strong>
+          <span>{carwash.lat && carwash.lng ? `${carwash.lat}, ${carwash.lng}` : '좌표 정보 없음'}</span>
+        </div>
+        <a class="primary-link" href={carwash.naverMapUrl} target="_blank" rel="noreferrer">네이버 지도에서 보기</a>
+      </div>
+    </section>
+
+    {carwash.conclusionSection && (
+      <section class="decision-section section-tint">
+        <div class="section-heading">
+          <span>정리</span>
+          <h2>이런 경우 참고해 보세요</h2>
+        </div>
+        <div class="guide-prose">
+          <p>{carwash.conclusionSection}</p>
+        </div>
+      </section>
+    )}
+
+    {sourceRefs.length > 0 && (
+      <section class="decision-section">
+        <div class="section-heading">
+          <span>참고 링크</span>
+          <h2>네이버 블로그 후기</h2>
+        </div>
+        <ul class="source-list">
+          {sourceRefs.slice(0, 5).map((source: { title?: string; link: string }, index: number) => (
+            <li>
+              <a href={source.link} target="_blank" rel="noreferrer">
+                {source.title || `네이버 블로그 후기 ${index + 1}`}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
+    )}
+
+    {(relatedAreas.length > 0 || relatedTypes.length > 0) && (
+      <section class="decision-section section-tint">
+        <div class="section-heading">
+          <span>내부링크</span>
+          <h2>함께 볼 만한 묶음 페이지</h2>
+        </div>
+        <div class="link-ladder">
+          {relatedAreas.slice(0, 5).map((group) => <a href={`/area/${group.slug}/`}>{group.name}</a>)}
+          {relatedTypes.slice(0, 4).map((group) => <a href={`/type/${group.slug}/`}>{group.name}</a>)}
+        </div>
+      </section>
+    )}
+    <AdSlot placement="bottom" />
+  </article>
+</BaseLayout>

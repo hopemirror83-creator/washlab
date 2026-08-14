@@ -1,0 +1,21 @@
+{
+  "name": "워시랩",
+  "short_name": "워시랩",
+  "description": "전국 세차장 위치, 유형, 요금과 후기를 비교하는 정보 사이트",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#006b63",
+  "icons": [
+    {
+      "src": "/favicon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/favicon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

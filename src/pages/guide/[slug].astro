@@ -1,0 +1,207 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import AdSlot from '../../components/AdSlot.astro';
+import { guidePages } from '../../data/guidePages';
+import { areaGroups, carwashes } from '../../data/siteData';
+
+export function getStaticPaths() {
+  return guidePages.map((guide) => ({
+    params: { slug: guide.slug },
+    props: { guide },
+  }));
+}
+
+const { guide } = Astro.props;
+const matchedItems = pickGuideItems(guide);
+const cityLinks = pickCityLinks(guide);
+const faq = buildFaq(guide);
+const guideNameWithObjectParticle = `${guide.name}${hasFinalConsonant(guide.name) ? '을' : '를'}`;
+const schema = {
+  '@context': 'https://schema.org',
+  '@type': 'Article',
+  headline: guide.title,
+  description: guide.description,
+  mainEntity: faq.map((item) => ({
+    '@type': 'Question',
+    name: item.q,
+    acceptedAnswer: {
+      '@type': 'Answer',
+      text: item.a,
+    },
+  })),
+};
+
+function pickGuideItems(guide: any) {
+  return carwashes
+    .map((item: any) => ({ item, score: scoreGuideItem(item, guide.terms) }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score || Number(b.item.sourceCount || 0) - Number(a.item.sourceCount || 0))
+    .map((entry) => entry.item)
+    .slice(0, 18);
+}
+
+function scoreGuideItem(item: any, terms: string[]) {
+  const text = [
+    item.name,
+    item.category,
+    item.washType,
+    item.areaLabel,
+    item.roadAddress,
+    ...(item.serviceLabels || []),
+    ...(item.querySignals || []),
+    ...(item.sourceRefs || []).map((source: any) => source.title),
+  ].filter(Boolean).join(' ');
+  let score = 0;
+  for (const term of terms) if (text.includes(term)) score += 18;
+  if (item.hasReviews) score += Math.min(Number(item.sourceCount || 0), 8) * 4;
+  if (item.phone && item.phone !== '정보 없음') score += 2;
+  return score;
+}
+
+function pickCityLinks(guide: any) {
+  return areaGroups
+    .filter((group: any) => group.type === 'districtType' || group.type === 'city')
+    .filter((group: any) => guide.terms.some((term: string) => `${group.name} ${group.title} ${group.description}`.includes(term)) || group.type === 'city')
+    .slice(0, 16);
+}
+
+function buildFaq(guide: any) {
+  return (guide.faq || []).map(([q, a]: string[]) => ({ q, a }));
+}
+
+function hasFinalConsonant(value: string) {
+  const last = value.trim().charCodeAt(value.trim().length - 1);
+  if (last < 0xac00 || last > 0xd7a3) return false;
+  return (last - 0xac00) % 28 !== 0;
+}
+---
+
+<BaseLayout title={guide.title} description={guide.description} schema={schema}>
+  <section class="page-head">
+    <p class="eyebrow">서비스 가이드</p>
+    <h1>{guide.title}</h1>
+    <p>{guide.description}</p>
+  </section>
+
+  <section class="decision-section section-tint">
+    <div class="service-guide-grid">
+      <article class="service-guide-card">
+        <span>선택 기준</span>
+        <h2>{guide.name} 확인사항</h2>
+        <ul>
+          {guide.checks.map((check: string) => <li>{check}</li>)}
+        </ul>
+      </article>
+      <article class="service-guide-card">
+        <span>방문 전</span>
+        <h2>최신 정보 확인</h2>
+        <p>
+          세차장은 같은 서비스명이라도 포함 범위가 다를 수 있습니다. 네이버 지도 사진, 가격표, 최근 후기,
+          업체 안내를 함께 보고 방문하면 선택 실패를 줄일 수 있습니다.
+        </p>
+      </article>
+      <article class="service-guide-card">
+        <span>후기 보기</span>
+        <h2>반복되는 의견 중심으로 보기</h2>
+        <p>
+          후기는 한 건만 보기보다 여러 글에서 반복되는 장점과 불편한 점을 함께 보는 편이 좋습니다.
+          워시랩은 직접 이용한 것처럼 단정하지 않고 확인 가능한 후기 흐름만 정리합니다.
+        </p>
+      </article>
+    </div>
+  </section>
+
+  <AdSlot placement="top" />
+
+  <section class="decision-section">
+    <div class="section-heading">
+      <span>선택 가이드</span>
+      <h2>{guideNameWithObjectParticle} 찾을 때 먼저 볼 내용</h2>
+    </div>
+    <div class="content-hub-prose">
+      {guide.intro.map((paragraph: string) => <p>{paragraph}</p>)}
+    </div>
+  </section>
+
+  <AdSlot placement="inArticle" />
+
+  <section class="decision-section section-tint">
+    <div class="section-heading">
+      <span>비교 기준</span>
+      <h2>{guide.compareTitle}</h2>
+      <p>업체마다 같은 서비스명을 쓰더라도 실제 작업 범위와 운영 방식은 다를 수 있습니다.</p>
+    </div>
+    <div class="content-check-grid">
+      {guide.comparePoints.map((point: string) => (
+        <article>
+          <strong>{point}</strong>
+        </article>
+      ))}
+    </div>
+  </section>
+
+  <section class="decision-section">
+    <div class="two-column-info">
+      <article class="content-info-panel">
+        <span>요금 확인</span>
+        <h2>{guide.name} 가격을 볼 때</h2>
+        <p>{guide.priceGuide}</p>
+      </article>
+      <article class="content-info-panel">
+        <span>후기 해석</span>
+        <h2>후기에서 참고할 표현</h2>
+        <p>{guide.reviewGuide}</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="decision-section">
+    <div class="section-heading">
+      <span>추천 후보</span>
+      <h2>{guide.name} 관련 세차장</h2>
+      <p>서비스명, 업체명, 카테고리, 후기 제목에서 관련성이 높은 업체를 먼저 모았습니다.</p>
+    </div>
+    <div class="shop-grid">
+      {matchedItems.map((item: any) => (
+        <a class="shop-card" href={`/carwash/${item.slug}/`}>
+          <div>
+            <strong>{item.name}</strong>
+            <span>{item.areaLabel || item.dong || item.district} · {item.washType}</span>
+          </div>
+          <p>{item.roadAddress || item.lotAddress}</p>
+          <div class="tag-row">
+            {item.serviceLabels.slice(0, 4).map((label: string) => <span>{label}</span>)}
+          </div>
+        </a>
+      ))}
+    </div>
+  </section>
+
+  <section class="decision-section section-tint">
+    <div class="section-heading">
+      <span>FAQ</span>
+      <h2>{guide.name} 자주 묻는 질문</h2>
+    </div>
+    <div class="faq-list">
+      {faq.map((item) => (
+        <article>
+          <h3>{item.q}</h3>
+          <p>{item.a}</p>
+        </article>
+      ))}
+    </div>
+  </section>
+
+  {cityLinks.length > 0 && (
+    <section class="decision-section">
+      <div class="section-heading">
+        <span>지역별 보기</span>
+        <h2>{guide.name} 지역 묶음</h2>
+      </div>
+      <div class="link-ladder">
+        {cityLinks.map((group: any) => <a href={`/area/${group.slug}/`}>{group.name}</a>)}
+      </div>
+    </section>
+  )}
+  <AdSlot placement="bottom" />
+</BaseLayout>

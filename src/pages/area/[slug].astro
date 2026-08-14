@@ -1,0 +1,417 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import AdSlot from '../../components/AdSlot.astro';
+import NaverGroupMap from '../../components/NaverGroupMap.astro';
+import { areaGroups } from '../../data/siteData';
+
+export function getStaticPaths() {
+  return areaGroups.map((group) => ({
+    params: { slug: group.slug },
+    props: { group },
+  }));
+}
+
+const { group } = Astro.props;
+const title = group.title;
+const description = group.description;
+const knownFeeCount = group.items.filter((item: any) => item.feeInfo !== '요금 정보 없음').length;
+const knownPhoneCount = group.items.filter((item: any) => item.phone !== '정보 없음').length;
+const reviewCount = group.items.filter((item: any) => item.hasReviews).length;
+const isIntentGroup = ['districtType', 'dongType', 'placeType', 'priorityKeyword'].includes(group.type);
+const useModernAreaLayout = true;
+const hasAreaRecommendations = group.items.length > 0;
+const recommendationBaseItems = getRecommendationBaseItems(group);
+const recommendationSections = hasAreaRecommendations ? buildRecommendationSections(recommendationBaseItems) : [];
+const areaGuideCards = buildAreaGuideCards(group);
+const intentGuide = group.intent?.guide || '가까운 위치만 보지 말고 세차 방식, 대기 동선, 운영시간, 요금표 공개 여부를 함께 비교하는 것이 좋습니다.';
+const intentExamples = getIntentExamples(group);
+const schema = {
+  '@context': 'https://schema.org',
+  '@type': 'CollectionPage',
+  name: title,
+  description,
+  mainEntity: group.items.map((item: any) => ({
+    '@type': 'LocalBusiness',
+    name: item.name,
+    address: item.roadAddress || item.lotAddress,
+    url: new URL(`/carwash/${item.slug}/`, Astro.site).toString(),
+  })),
+};
+
+function getRecommendationBaseItems(group: any) {
+  if (group.slug !== 'incheon-seogu-carwash') return group.items;
+  const incheonGroup = areaGroups.find((item: any) => item.slug === 'incheon-carwash');
+  const seoguItems = incheonGroup?.items?.filter((item: any) => {
+    const text = `${item.cityLabel || ''} ${item.district || ''} ${item.areaLabel || ''} ${item.roadAddress || ''} ${item.lotAddress || ''}`;
+    return text.includes('인천') && text.includes('서구');
+  });
+  return seoguItems?.length ? seoguItems : group.items;
+}
+
+function buildAreaGuideCards(group: any) {
+  const groupName = String(group.name || '').replace(/\s*세차장$/, '');
+  const typeHint = group.intent?.name || (group.type === 'city' ? '시도 전체' : '지역');
+  return [
+    {
+      title: `${groupName}에서 먼저 좁혀볼 기준`,
+      body: `${group.name}은 가까운 순서만 보면 선택지가 많아질 수 있습니다. 후기 있는 곳, 운영시간이 보이는 곳, 셀프세차·손세차·자동세차처럼 원하는 방식이 분명한 곳부터 보는 편이 좋습니다.`,
+    },
+    {
+      title: `${typeHint} 비교에서 중요한 점`,
+      body: `요금 정보가 공개된 곳은 많지 않기 때문에 위치, 세차 유형, 전화 가능 여부, 블로그 후기 여부를 함께 봐야 합니다. 실제 요금과 코스는 방문 전 업체 안내로 다시 확인해 주세요.`,
+    },
+    {
+      title: `방문 전 확인하면 좋은 항목`,
+      body: `24시간, 하부세차, 진공청소기, 매트세척기, 카드결제는 매장마다 다를 수 있습니다. 네이버 지도 영업 상태와 최근 사진을 함께 확인하면 헛걸음을 줄일 수 있습니다.`,
+    },
+  ];
+}
+
+function buildRecommendationSections(items: any[]) {
+  const rankedItems = [...items].sort((a, b) => getStarterScore(b) - getStarterScore(a));
+  const reviewItems = pickItemsWithFallback(
+    items
+      .filter((item) => item.hasReviews)
+      .sort((a, b) => Number(b.sourceCount || 0) - Number(a.sourceCount || 0)),
+    rankedItems,
+  );
+
+  const starterItems = pickItems(rankedItems);
+
+  const nightItems = pickItemsWithFallback(
+    items
+      .filter((item) => /24시|24시간|야간/i.test(getItemText(item)))
+      .sort((a, b) => getStarterScore(b) - getStarterScore(a)),
+    rankedItems,
+  );
+
+  const autoItems = pickItemsWithFallback(
+    items
+      .filter((item) => /노터치|노브러시|노브러쉬|자동세차|컴인워시/i.test(getItemText(item)))
+      .sort((a, b) => getStarterScore(b) - getStarterScore(a)),
+    rankedItems,
+  );
+
+  const selfItems = pickItemsWithFallback(
+    items
+      .filter((item) => /셀프세차|셀프/i.test(getItemText(item)))
+      .sort((a, b) => getStarterScore(b) - getStarterScore(a)),
+    rankedItems,
+  );
+
+  return [
+    {
+      title: '후기부터 확인하기 좋은 세차장 5곳',
+      description: '네이버 블로그 후기가 잡힌 곳을 먼저 보고, 부족한 자리는 정보가 비교적 잘 정리된 곳으로 채웠습니다.',
+      items: reviewItems,
+    },
+    {
+      title: '처음 고르기 좋은 세차장 5곳',
+      description: '후기, 전화번호, 운영시간, 시설 태그가 비교적 잘 잡힌 곳을 우선했습니다.',
+      items: starterItems,
+    },
+    {
+      title: '24시간·야간 이용 후보 5곳',
+      description: '24시 또는 야간 이용 단서가 있는 곳을 먼저 모았습니다. 실제 영업 여부는 방문 전에 한 번 더 확인해 주세요.',
+      items: nightItems,
+    },
+    {
+      title: '노터치·자동세차 후보 5곳',
+      description: '노터치, 노브러쉬, 자동세차 검색 의도에 맞는 곳을 모았습니다.',
+      items: autoItems,
+    },
+    {
+      title: '셀프세차 후보 5곳',
+      description: '셀프세차 카테고리와 업체명 단서가 있는 곳을 먼저 보여드립니다.',
+      items: selfItems,
+    },
+  ].filter((section) => section.items.length > 0);
+}
+
+function pickItems(items: any[], limit = 5) {
+  const seen = new Set<string>();
+  const picked: any[] = [];
+  for (const item of items) {
+    if (!item?.slug || seen.has(item.slug)) continue;
+    seen.add(item.slug);
+    picked.push(item);
+    if (picked.length >= limit) break;
+  }
+  return picked;
+}
+
+function pickItemsWithFallback(primaryItems: any[], fallbackItems: any[], limit = 5) {
+  return pickItems([...primaryItems, ...fallbackItems], limit);
+}
+
+function getStarterScore(item: any) {
+  let score = Number(item.sourceCount || 0) * 8;
+  if (item.hasReviews) score += 24;
+  if (item.phone && item.phone !== '정보 없음') score += 12;
+  if (item.weekdayHours && item.weekdayHours !== '정보 없음') score += 10;
+  if (item.feeInfo && item.feeInfo !== '요금 정보 없음') score += 8;
+  score += Math.min(Number(item.serviceLabels?.length || 0), 5) * 4;
+  if (/노터치|자동세차|셀프세차|24시|24시간/i.test(getItemText(item))) score += 6;
+  return score;
+}
+
+function getItemText(item: any) {
+  return [
+    item.name,
+    item.category,
+    item.washType,
+    item.weekdayHours,
+    item.holidayHours,
+    item.areaLabel,
+    item.roadAddress,
+    item.lotAddress,
+    ...(item.serviceLabels || []),
+    ...(item.querySignals || []),
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
+function getIntentExamples(group: any) {
+  const intent = group.intent?.slug || '';
+  if (intent === 'self-carwash') return '셀프세차장은 세차 베이 수, 고압수와 폼건 상태, 진공청소기 공간, 매트세척기 위치를 함께 보면 실제 이용 동선을 가늠하기 좋습니다.';
+  if (intent === 'auto-carwash') return '자동세차장은 노터치 여부, 하부세차 포함 코스, 건조 구간, 주유소 할인이나 세차권 판매 여부를 비교해 보세요.';
+  if (intent === 'nobrush-carwash') return '노터치 세차장은 브러시 접촉이 적은 방식인지, 예비 고압수와 건조 코스가 충분한지, 대기 차량이 많은 시간대가 있는지 살펴보는 편이 좋습니다.';
+  if (intent === 'hand-carwash') return '손세차장은 예약 가능 여부, 외부세차와 실내세차 포함 범위, 광택이나 디테일링 작업 가능 여부를 먼저 확인하면 좋습니다.';
+  if (intent === 'interior-carwash') return '실내세차는 매트, 시트, 트렁크, 에바크리닝처럼 작업 범위가 넓어질 수 있으니 원하는 항목이 기본요금에 포함되는지 확인해 보세요.';
+  if (intent === 'underbody-carwash') return '하부세차는 자동세차 코스에 포함되는지, 별도 옵션인지, 동절기나 염화칼슘 제거 목적에 맞는지 확인하는 것이 좋습니다.';
+  if (intent === '24h-carwash') return '24시간 세차장은 야간 조명, 결제 방식, 소음 민원 가능성, 심야 운영 변동 여부를 네이버 지도에서 한 번 더 확인해 주세요.';
+  return '블로그 후기가 있는 곳은 실제 이용 분위기를 참고하기 좋고, 후기가 적은 곳은 네이버 지도 사진과 영업 상태를 함께 확인하면 선택이 쉬워집니다.';
+}
+---
+
+<BaseLayout title={title} description={description} schema={schema}>
+  <section class="page-head">
+    <p class="eyebrow">{isIntentGroup ? '지역+유형 묶음' : '지역 묶음'}</p>
+    <h1>{title}</h1>
+    <p>{description}</p>
+  </section>
+
+  <AdSlot placement="top" />
+
+  {useModernAreaLayout && (
+    <section class="decision-section section-tint">
+      <div class="stats-grid" aria-label="묶음 현황">
+        <div>
+          <strong>{group.items.length}</strong>
+          <span>등록 세차장</span>
+        </div>
+        <div>
+          <strong>{knownFeeCount}</strong>
+          <span>요금 정보 있음</span>
+        </div>
+        <div>
+          <strong>{knownPhoneCount}</strong>
+          <span>전화 확인 가능</span>
+        </div>
+        <div>
+          <strong>{reviewCount}</strong>
+          <span>블로그 후기 확인</span>
+        </div>
+      </div>
+    </section>
+  )}
+
+  <section class="decision-section">
+    <div class="section-heading">
+      <span>지도</span>
+      <h2>{group.name} 위치 한눈에 보기</h2>
+      <p>{useModernAreaLayout ? '마커를 누르면 상세보기와 네이버지도 버튼이 함께 표시됩니다. 위치를 먼저 보고, 자세한 정보는 워시랩 상세페이지에서 확인해 주세요.' : '지도 마커나 아래 업체명을 누르면 네이버 지도 상세 화면으로 이동합니다.'}</p>
+    </div>
+    <div class="service-guide-grid area-guide-grid">
+      {areaGuideCards.map((card) => (
+        <article class="service-guide-card">
+          <span>선택 가이드</span>
+          <h3>{card.title}</h3>
+          <p>{card.body}</p>
+        </article>
+      ))}
+    </div>
+    <NaverGroupMap id={group.slug} title={group.name} items={group.items} showMarkerList={!useModernAreaLayout} />
+  </section>
+
+  {!useModernAreaLayout && (
+    <section class="decision-section section-tint">
+      <div class="stats-grid" aria-label="묶음 현황">
+        <div>
+          <strong>{group.items.length}</strong>
+          <span>등록 세차장</span>
+        </div>
+        <div>
+          <strong>{knownFeeCount}</strong>
+          <span>요금 정보 있음</span>
+        </div>
+        <div>
+          <strong>{knownPhoneCount}</strong>
+          <span>전화 확인 가능</span>
+        </div>
+        <div>
+          <strong>{reviewCount}</strong>
+          <span>블로그 후기 확인</span>
+        </div>
+      </div>
+    </section>
+  )}
+
+  <AdSlot placement="inArticle" />
+
+  <section class="decision-section">
+    <div class="section-heading">
+      <span>방문 전 비교</span>
+      <h2>{group.name} 고를 때 볼 점</h2>
+    </div>
+    <div class="guide-prose">
+      <p>
+        {isIntentGroup ? intentGuide : `${group.name}을 찾을 때는 가까운 위치만 보지 말고 세차 방식, 대기 동선, 운영시간, 요금표 공개 여부를 함께 비교하는 것이 좋습니다.`}
+        {intentExamples}
+      </p>
+      <p>
+        워시랩은 네이버 지도와 블로그 후기를 먼저 보고, 주소와 전화번호처럼 확인 가능한 기본정보를 함께 정리합니다.
+        블로그 후기가 있는 곳은 이용자 의견을 참고 문장으로 요약했고, 후기가 적은 곳은 지도 등록 정보와 방문 전 확인할 점을 중심으로 정리했습니다.
+      </p>
+    </div>
+  </section>
+
+  {useModernAreaLayout && (
+    <section class="decision-section section-tint">
+      {hasAreaRecommendations && recommendationSections.length > 0 && (
+        <>
+          <div class="section-heading">
+            <span>추천 목록</span>
+            <h2>{group.name} 먼저 볼 만한 세차장</h2>
+            <p>전체 목록이 많아 고르기 어렵다면 아래 추천 묶음부터 확인해 보세요. 추천은 후기 수, 세차 유형, 운영시간 단서, 시설 태그를 기준으로 자동 정리했습니다.</p>
+          </div>
+          <div class="recommendation-grid">
+            {recommendationSections.map((section) => (
+              <section class="recommendation-panel" aria-label={section.title}>
+                <div class="recommendation-head">
+                  <h3>{section.title}</h3>
+                  <p>{section.description}</p>
+                </div>
+                <div class="recommendation-list">
+                  {section.items.map((item: any, index: number) => (
+                    <article class="recommendation-card">
+                      <span class="recommendation-rank">{index + 1}</span>
+                      <div>
+                        <strong>{item.name}</strong>
+                        <small>{item.areaLabel || item.dong || item.district || '인천'} · {item.washType}</small>
+                        <p>{item.hasReviews ? `블로그 후기 ${item.sourceCount || 1}건` : item.weekdayHours && item.weekdayHours !== '정보 없음' ? item.weekdayHours : '방문 전 최신 정보 확인'}</p>
+                      </div>
+                      <a href={`/carwash/${item.slug}/`}>상세보기</a>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+        </>
+      )}
+      <div class="section-heading">
+        <span>세차장 선택</span>
+        <h2>{group.name} 세차장 비교</h2>
+        <p>상세보기는 워시랩 내부 정보로, 네이버지도는 길찾기와 최신 영업상태 확인용으로 분리했습니다.</p>
+      </div>
+      <div class="area-card-list">
+        {group.items.map((item: any) => (
+          <article class="area-carwash-card">
+            <div class="area-card-main">
+              <div>
+                <strong>{item.name}</strong>
+                <span>{item.areaLabel || item.dong || item.district || '인천'} · {item.washType}</span>
+              </div>
+              <p>{item.roadAddress || item.lotAddress}</p>
+              <div class="tag-row">
+                {item.serviceLabels.slice(0, 4).map((label: string) => <span>{label}</span>)}
+              </div>
+            </div>
+            <dl class="area-card-meta">
+              <div>
+                <dt>운영시간</dt>
+                <dd>{item.weekdayHours}</dd>
+              </div>
+              <div>
+                <dt>요금</dt>
+                <dd>{item.feeInfo}</dd>
+              </div>
+              <div>
+                <dt>후기</dt>
+                <dd>{item.hasReviews ? `블로그 ${item.sourceCount || 1}건` : '확인 필요'}</dd>
+              </div>
+            </dl>
+            <div class="area-card-actions">
+              <a class="primary-link" href={`/carwash/${item.slug}/`}>상세보기</a>
+              <a class="secondary-link" href={item.naverMapUrl} target="_blank" rel="noreferrer">네이버지도</a>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  )}
+
+  {!useModernAreaLayout && (
+  <section class="decision-section section-tint">
+    <div class="section-heading">
+      <span>비교표</span>
+      <h2>{group.name} 목록</h2>
+    </div>
+    <div class="table-scroll">
+      <table class="compare-table">
+        <thead>
+          <tr>
+            <th>세차장</th>
+            <th>지역</th>
+            <th>유형</th>
+            <th>운영시간</th>
+            <th>요금</th>
+            <th>전화</th>
+          </tr>
+        </thead>
+        <tbody>
+          {group.items.map((item: any) => (
+            <tr>
+              <th>
+                <a href={`/carwash/${item.slug}/`}>{item.name}</a>
+                <small>{item.roadAddress || item.lotAddress}</small>
+              </th>
+              <td>{item.areaLabel || item.dong || item.district || '인천'}</td>
+              <td>{item.washType}</td>
+              <td>{item.weekdayHours}</td>
+              <td>{item.feeInfo}</td>
+              <td>{item.phone}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  )}
+
+  {!useModernAreaLayout && (
+  <section class="decision-section">
+    <div class="section-heading">
+      <span>상세 페이지</span>
+      <h2>개별 세차장 정보</h2>
+    </div>
+    <div class="shop-grid">
+      {group.items.map((item: any) => (
+        <a class="shop-card" href={`/carwash/${item.slug}/`}>
+          <div>
+            <strong>{item.name}</strong>
+            <span>{item.category} · {item.washType}</span>
+          </div>
+          <p>{item.roadAddress || item.lotAddress}</p>
+          <div class="tag-row">
+            {item.serviceLabels.slice(0, 4).map((label: string) => <span>{label}</span>)}
+          </div>
+        </a>
+      ))}
+    </div>
+  </section>
+  )}
+  <AdSlot placement="bottom" />
+</BaseLayout>

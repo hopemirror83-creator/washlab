@@ -1,0 +1,191 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import AdSlot from '../../components/AdSlot.astro';
+import NaverGroupMap from '../../components/NaverGroupMap.astro';
+import { keywordPages } from '../../data/keywordPages';
+import { areaGroups, carwashes } from '../../data/siteData';
+
+export function getStaticPaths() {
+  return keywordPages.map((page) => ({
+    params: { slug: page.slug },
+    props: { page },
+  }));
+}
+
+const { page } = Astro.props;
+const matchedItems = pickKeywordItems(page);
+const relatedAreas = pickRelatedAreas(matchedItems);
+const schema = {
+  '@context': 'https://schema.org',
+  '@type': 'CollectionPage',
+  name: page.title,
+  description: page.description,
+  mainEntity: matchedItems.slice(0, 20).map((item: any) => ({
+    '@type': 'LocalBusiness',
+    name: item.name,
+    address: item.roadAddress || item.lotAddress,
+    url: new URL(`/carwash/${item.slug}/`, Astro.site).toString(),
+  })),
+};
+
+function pickKeywordItems(page: any) {
+  const terms = page.terms || [];
+  const scored = carwashes
+    .map((item: any) => ({ item, score: scoreItem(item, terms, page.keyword) }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score || Number(b.item.sourceCount || 0) - Number(a.item.sourceCount || 0));
+
+  const fallback = [...carwashes]
+    .sort((a: any, b: any) => Number(b.rankScore || 0) - Number(a.rankScore || 0))
+    .slice(0, 20);
+
+  const seen = new Set();
+  return [...scored.map((entry) => entry.item), ...fallback].filter((item: any) => {
+    if (seen.has(item.slug)) return false;
+    seen.add(item.slug);
+    return true;
+  }).slice(0, 30);
+}
+
+function scoreItem(item: any, terms: string[], keyword: string) {
+  const text = [
+    item.name,
+    item.cityLabel,
+    item.district,
+    item.dong,
+    item.areaLabel,
+    item.category,
+    item.washType,
+    item.roadAddress,
+    item.lotAddress,
+    ...(item.serviceLabels || []),
+    ...(item.querySignals || []),
+    ...(item.sourceRefs || []).map((source: any) => source.title),
+  ].filter(Boolean).join(' ');
+
+  let score = 0;
+  for (const term of terms) {
+    if (text.includes(term)) score += term.length >= 4 ? 18 : 10;
+  }
+  if (/노브러쉬|노터치/.test(keyword) && /노브러쉬|노브러시|노터치|컴인워시/.test(text)) score += 35;
+  if (/자동세차/.test(keyword) && /자동세차|주유소|기계식/.test(text)) score += 28;
+  if (/셀프세차|개러지|게러지/.test(keyword) && /셀프세차|셀프|개러지|게러지/.test(text)) score += 28;
+  if (/손세차|디테일링|광택|유리막|스팀|실내/.test(keyword) && /손세차|디테일|광택|유리막|스팀|실내|내부/.test(text)) score += 28;
+  if (item.hasReviews) score += Math.min(Number(item.sourceCount || 0), 8) * 3;
+  if (item.phone && item.phone !== '정보 없음') score += 3;
+  if (item.weekdayHours && item.weekdayHours !== '정보 없음') score += 3;
+  return score;
+}
+
+function pickRelatedAreas(items: any[]) {
+  const slugs = new Set(items.map((item) => item.slug));
+  return areaGroups
+    .filter((group: any) => ['city', 'district', 'districtType', 'dong'].includes(group.type))
+    .map((group: any) => ({
+      ...group,
+      matchedCount: group.items.filter((item: any) => slugs.has(item.slug)).length,
+    }))
+    .filter((group: any) => group.matchedCount > 0)
+    .sort((a: any, b: any) => b.matchedCount - a.matchedCount || b.items.length - a.items.length)
+    .slice(0, 12);
+}
+---
+
+<BaseLayout title={page.title} description={page.description} schema={schema}>
+  <section class="page-head">
+    <p class="eyebrow">검색어 가이드</p>
+    <h1>{page.title}</h1>
+    <p>{page.description}</p>
+  </section>
+
+  <section class="decision-section section-tint">
+    <div class="keyword-intent">
+      <article>
+        <span>검색 의도</span>
+        <h2>{page.keyword}를 찾을 때 먼저 볼 점</h2>
+        <p>
+          이 검색어는 단순히 가까운 업체를 찾는 의도보다, 세차 방식과 실제 방문 가능성을 함께 확인하려는 성격이 강합니다.
+          위치, 영업시간, 요금 단서, 후기 사진, 네이버 지도 최신 상태를 함께 보는 편이 좋습니다.
+        </p>
+      </article>
+      <article>
+        <span>워시랩 정리 기준</span>
+        <h2>업체명과 지도 정보, 후기 여부를 함께 반영</h2>
+        <p>
+          워시랩은 업체명, 네이버 지도 카테고리, 검색어 단서, 블로그 후기 수를 함께 보고 후보를 정리합니다.
+          방문 전에는 업체 안내나 네이버 지도에서 최신 운영 정보를 한 번 더 확인해 주세요.
+        </p>
+      </article>
+    </div>
+  </section>
+
+  <AdSlot placement="top" />
+
+  <section class="decision-section">
+    <div class="section-heading">
+      <span>추천 후보</span>
+      <h2>{page.keyword} 관련 세차장</h2>
+      <p>검색어와 잘 맞는 업체를 먼저 보여드립니다. 상세페이지에서 주소, 요금, 운영시간, 후기 요약을 확인할 수 있습니다.</p>
+    </div>
+    <div class="area-card-list">
+      {matchedItems.map((item: any) => (
+        <article class="area-carwash-card">
+          <div class="area-card-main">
+            <div>
+              <strong>{item.name}</strong>
+              <span>{item.areaLabel || item.dong || item.district} · {item.washType}</span>
+            </div>
+            <p>{item.roadAddress || item.lotAddress}</p>
+            <div class="tag-row">
+              {item.serviceLabels.slice(0, 4).map((label: string) => <span>{label}</span>)}
+            </div>
+          </div>
+          <dl class="area-card-meta">
+            <div>
+              <dt>운영시간</dt>
+              <dd>{item.weekdayHours}</dd>
+            </div>
+            <div>
+              <dt>요금</dt>
+              <dd>{item.feeInfo}</dd>
+            </div>
+            <div>
+              <dt>후기</dt>
+              <dd>{item.hasReviews ? `블로그 ${item.sourceCount || 1}건` : '확인 필요'}</dd>
+            </div>
+          </dl>
+          <div class="area-card-actions">
+            <a class="primary-link" href={`/carwash/${item.slug}/`}>상세보기</a>
+            <a class="secondary-link" href={item.naverMapUrl} target="_blank" rel="noreferrer">네이버지도</a>
+          </div>
+        </article>
+      ))}
+    </div>
+  </section>
+
+  <AdSlot placement="inArticle" />
+
+  <section class="decision-section section-tint">
+    <div class="section-heading">
+      <span>지도</span>
+      <h2>{page.keyword} 지도에서 보기</h2>
+      <p>지도는 길찾기와 위치 확인용입니다. 업체 상세 정보는 워시랩 상세페이지와 네이버 지도 최신 정보를 함께 확인해 주세요.</p>
+    </div>
+    <NaverGroupMap id={`keyword-${page.slug}`} title={page.keyword} items={matchedItems} showMarkerList={false} />
+  </section>
+
+  {relatedAreas.length > 0 && (
+    <section class="decision-section">
+      <div class="section-heading">
+        <span>지역별로 보기</span>
+        <h2>함께 볼 만한 지역 묶음</h2>
+      </div>
+      <div class="link-ladder">
+        {relatedAreas.map((group: any) => (
+          <a href={`/area/${group.slug}/`}>{group.name} <small>{group.matchedCount}곳</small></a>
+        ))}
+      </div>
+    </section>
+  )}
+  <AdSlot placement="bottom" />
+</BaseLayout>

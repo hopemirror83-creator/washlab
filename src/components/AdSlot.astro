@@ -1,0 +1,50 @@
+---
+interface Props {
+  placement: 'top' | 'inArticle' | 'middle' | 'bottom' | 'list';
+}
+
+const { placement } = Astro.props;
+const client = import.meta.env.PUBLIC_ADSENSE_CLIENT || 'ca-pub-2849585811939559';
+const slotMap: Record<string, string> = {
+  top: import.meta.env.PUBLIC_ADSENSE_SLOT_TOP || '5476608409',
+  inArticle: import.meta.env.PUBLIC_ADSENSE_SLOT_IN_ARTICLE || '7903344628',
+  middle: import.meta.env.PUBLIC_ADSENSE_SLOT_IN_ARTICLE || '7903344628',
+  bottom: import.meta.env.PUBLIC_ADSENSE_SLOT_BOTTOM || '8304886068',
+  list: import.meta.env.PUBLIC_ADSENSE_SLOT_IN_ARTICLE || '7903344628',
+};
+const slot = slotMap[placement] || '';
+const enabled = Boolean(client && slot);
+const isMultiplex = placement === 'bottom';
+const isInArticle = placement === 'inArticle' || placement === 'middle' || placement === 'list';
+const adFormat = isMultiplex ? 'autorelaxed' : isInArticle ? 'fluid' : 'auto';
+const adLayout = isInArticle ? 'in-article' : undefined;
+const responsive = !isMultiplex && !isInArticle ? 'true' : undefined;
+const insStyle = isInArticle ? 'display:block; text-align:center;' : 'display:block';
+const shellClass = [
+  'ad-slot',
+  'ad-shell',
+  isInArticle ? 'ad-in-article ad-shell-in-article' : `ad-${placement}`,
+  isMultiplex ? 'ad-shell-bottom' : '',
+].filter(Boolean).join(' ');
+---
+
+<section class={shellClass} aria-label="광고">
+  {enabled ? (
+    <>
+      <ins
+        class="adsbygoogle"
+        style={insStyle}
+        data-ad-client={client}
+        data-ad-slot={slot}
+        data-ad-layout={adLayout}
+        data-ad-format={adFormat}
+        data-full-width-responsive={responsive}
+      />
+      <script is:inline>
+        (window.adsbygoogle = window.adsbygoogle || []).push({});
+      </script>
+    </>
+  ) : (
+    <span>광고</span>
+  )}
+</section>

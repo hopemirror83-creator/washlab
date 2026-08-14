@@ -1,0 +1,72 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import AdSlot from '../../components/AdSlot.astro';
+import NaverGroupMap from '../../components/NaverGroupMap.astro';
+import { typeGroups } from '../../data/siteData';
+
+export function getStaticPaths() {
+  return typeGroups.map((group) => ({
+    params: { slug: group.slug },
+    props: { group },
+  }));
+}
+
+const { group } = Astro.props;
+const title = group.title;
+const description = group.description;
+---
+
+<BaseLayout title={title} description={description}>
+  <section class="page-head">
+    <p class="eyebrow">유형 묶음</p>
+    <h1>{title}</h1>
+    <p>{description}</p>
+  </section>
+
+  <section class="decision-section">
+    <div class="guide-prose">
+      <p>
+        {group.name}은 세차 방식과 검색 결과를 기준으로 묶은 페이지입니다.
+        실제 매장에서는 자동세차기, 셀프세차 베이, 진공청소기, 하부세차, 매트세척기 같은 시설이 서로 다르게 운영될 수 있습니다.
+      </p>
+      <p>
+        방문 전에는 네이버 지도에서 최신 사진과 영업 상태를 확인하고, 요금표가 보이지 않는 곳은 업체 안내나 전화 문의로 한 번 더 확인하는 것이 좋습니다.
+      </p>
+    </div>
+  </section>
+
+  <AdSlot placement="top" />
+
+  <section class="decision-section">
+    <div class="section-heading">
+      <span>지도</span>
+      <h2>{group.name} 위치 한눈에 보기</h2>
+      <p>지도 마커나 아래 업체명을 누르면 네이버 지도 상세 화면으로 이동합니다.</p>
+    </div>
+    <NaverGroupMap id={group.slug} title={group.name} items={group.items} />
+  </section>
+
+  <AdSlot placement="inArticle" />
+
+  <section class="decision-section section-tint">
+    <div class="section-heading">
+      <span>{group.items.length}곳</span>
+      <h2>{group.name} 목록</h2>
+    </div>
+    <div class="shop-grid">
+      {group.items.map((item: any) => (
+        <a class="shop-card" href={`/carwash/${item.slug}/`}>
+          <div>
+            <strong>{item.name}</strong>
+            <span>{item.areaLabel || item.dong || '인천'} · {item.washType}</span>
+          </div>
+          <p>{item.roadAddress || item.lotAddress}</p>
+          <div class="tag-row">
+            {item.serviceLabels.slice(0, 4).map((label: string) => <span>{label}</span>)}
+          </div>
+        </a>
+      ))}
+    </div>
+  </section>
+  <AdSlot placement="bottom" />
+</BaseLayout>

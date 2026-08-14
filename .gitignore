@@ -1,0 +1,29 @@
+.env
+.env.*
+!.env.example
+dist/
+dist-current/
+.astro/
+node_modules/
+.secrets/
+.wrangler/
+.wrangler-config/
+*.log
+*.out.log
+*.err.log
+
+# Rebuilt during the Cloudflare Pages build.
+src/data/siteData.ts
+data/carwashes.incheon.json
+data/carwashes.incheon-seogu.json
+
+# Stored in data/packed as compressed repository sources.
+data/generated-carwash-pages.json
+data/naver-review-sources.json
+data/naver-local-carwashes.json
+
+# Local reports and one-off search-engine submission lists.
+data/vertex-test/
+manual-index-*
+washlab-manual-index-*
+ai-enhancement-status.json

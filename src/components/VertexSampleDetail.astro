@@ -1,0 +1,341 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import AdSlot from './AdSlot.astro';
+import NaverMap from './NaverMap.astro';
+
+const { carwash, sample } = Astro.props;
+const address = carwash.roadAddress || carwash.lotAddress || carwash.address;
+const originalUrl = `/carwash/${carwash.slug}/`;
+const pageTitle = `${sample.title} | 워시랩 샘플`;
+const description = `${carwash.name} 기본정보와 네이버 블로그 후기를 참고해 ${sample.keyword} 관점으로 정리한 워시랩 샘플 페이지입니다.`;
+const reviewLinks: Array<{ title?: string; link: string }> = Array.isArray(carwash.sourceRefs) ? carwash.sourceRefs.slice(0, 8) : [];
+const schema = {
+  '@context': 'https://schema.org',
+  '@type': 'Article',
+  headline: sample.title,
+  description,
+  about: {
+    '@type': 'LocalBusiness',
+    name: carwash.name,
+    address,
+    telephone: carwash.phone && carwash.phone !== '정보 없음' ? carwash.phone : undefined,
+    url: new URL(originalUrl, Astro.site).toString(),
+  },
+};
+---
+
+<BaseLayout title={pageTitle} description={description} schema={schema}>
+  <article class="vertex-sample">
+    <section class="page-head sample-head">
+      <p class="eyebrow">3단계 샘플페이지</p>
+      <h1>{sample.title}</h1>
+      <p>{sample.lead}</p>
+      <div class="cta-row">
+        <a class="primary-link" href={originalUrl}>기존 상세페이지 보기</a>
+        <a class="secondary-link" href={carwash.naverMapUrl} target="_blank" rel="noreferrer">네이버지도 보기</a>
+      </div>
+    </section>
+
+    <section class="sample-info-grid">
+      <article>
+        <span>업체명</span>
+        <strong>{carwash.name}</strong>
+      </article>
+      <article>
+        <span>지역</span>
+        <strong>{carwash.areaLabel || `${carwash.cityLabel} ${carwash.district}`}</strong>
+      </article>
+      <article>
+        <span>분류</span>
+        <strong>{sample.serviceType}</strong>
+      </article>
+      <article>
+        <span>후기 참고</span>
+        <strong>블로그 {reviewLinks.length || carwash.sourceCount || 0}건</strong>
+      </article>
+    </section>
+
+    <AdSlot placement="top" />
+
+    <section class="sample-section sample-two-column">
+      <div>
+        <p class="eyebrow">기본정보</p>
+        <h2>{carwash.name}은 어떤 곳인가요?</h2>
+        {sample.basic.map((paragraph: string) => <p>{paragraph}</p>)}
+      </div>
+      <aside class="fact-box">
+        <h2>확인된 정보</h2>
+        <dl>
+          <div><dt>주소</dt><dd>{address || '확인안됨'}</dd></div>
+          <div><dt>전화</dt><dd>{carwash.phone || '확인안됨'}</dd></div>
+          <div><dt>운영시간</dt><dd>{carwash.weekdayHours || '확인안됨'}</dd></div>
+          <div><dt>요금</dt><dd>{carwash.feeInfo || '확인안됨'}</dd></div>
+        </dl>
+      </aside>
+    </section>
+
+    <section class="sample-section review-story">
+      <p class="eyebrow">네이버 블로그 후기</p>
+      <h2>후기에서 보이는 이용 분위기</h2>
+      {sample.reviewStory.map((paragraph: string) => <p>{paragraph}</p>)}
+    </section>
+
+    <AdSlot placement="inArticle" />
+
+    <section class="sample-section sample-review-grid">
+      <article>
+        <h2>긍정 의견</h2>
+        <ul>
+          {sample.positivePoints.map((point: string) => <li>{point}</li>)}
+        </ul>
+      </article>
+      <article>
+        <h2>확인할 점</h2>
+        <ul>
+          {sample.checkPoints.map((point: string) => <li>{point}</li>)}
+        </ul>
+      </article>
+    </section>
+
+    <section class="sample-section">
+      <p class="eyebrow">서비스 정보</p>
+      <h2>방문 전에 보면 좋은 항목</h2>
+      <div class="answer-grid">
+        {sample.answerCards.map((card: { label: string; value: string; note: string }) => (
+          <article>
+            <span>{card.label}</span>
+            <strong>{card.value}</strong>
+            <p>{card.note}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+
+    {reviewLinks.length > 0 && (
+      <section class="sample-section">
+        <p class="eyebrow">참고 링크</p>
+        <h2>네이버 블로그 후기</h2>
+        <ul class="source-list">
+          {reviewLinks.map((source) => (
+            <li><a href={source.link} target="_blank" rel="noreferrer">{source.title}</a></li>
+          ))}
+        </ul>
+      </section>
+    )}
+
+    <section class="sample-section section-tint">
+      <p class="eyebrow">위치</p>
+      <h2>{carwash.name} 지도</h2>
+      <NaverMap
+        id={`vertex-sample-${carwash.slug}`}
+        name={carwash.name}
+        address={address}
+        lat={carwash.lat}
+        lng={carwash.lng}
+        mapx={carwash.mapx}
+        mapy={carwash.mapy}
+        naverMapUrl={carwash.naverMapUrl}
+      />
+    </section>
+
+    <AdSlot placement="bottom" />
+  </article>
+</BaseLayout>
+
+<style>
+  .vertex-sample {
+    color: #111827;
+    width: min(100% - 64px, 1180px);
+    margin: 0 auto;
+    padding: 34px 0 72px;
+    overflow-x: hidden;
+  }
+
+  .sample-head p {
+    max-width: 920px;
+  }
+
+  .sample-head h1 {
+    max-width: 980px;
+    font-size: clamp(40px, 6vw, 72px);
+    line-height: 1.14;
+    letter-spacing: 0;
+  }
+
+  .sample-info-grid,
+  .sample-review-grid,
+  .answer-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    margin: 28px 0;
+  }
+
+  .sample-info-grid,
+  .sample-section {
+    max-width: 100%;
+  }
+
+  .sample-info-grid article,
+  .sample-review-grid article,
+  .answer-grid article,
+  .fact-box {
+    border: 1px solid #d6e1ea;
+    border-radius: 8px;
+    background: #fff;
+    padding: 22px;
+  }
+
+  .sample-info-grid span,
+  .answer-grid span {
+    display: block;
+    color: #00695c;
+    font-weight: 800;
+    margin-bottom: 8px;
+  }
+
+  .sample-info-grid strong,
+  .answer-grid strong {
+    display: block;
+    font-size: 22px;
+    line-height: 1.35;
+  }
+
+  .sample-section {
+    margin: 42px 0;
+  }
+
+  .sample-section h2 {
+    font-size: clamp(30px, 5vw, 48px);
+    line-height: 1.2;
+    margin: 8px 0 22px;
+  }
+
+  .sample-section p,
+  .sample-section li,
+  .fact-box dd {
+    font-size: 20px;
+    line-height: 1.82;
+    word-break: keep-all;
+  }
+
+  .sample-section > p,
+  .review-story > p,
+  .sample-two-column > div > p {
+    max-width: 940px;
+    margin: 0 0 18px;
+  }
+
+  .review-story p + p,
+  .sample-two-column p + p {
+    margin-top: 18px;
+  }
+
+  .sample-two-column {
+    display: grid;
+    grid-template-columns: minmax(0, 1.7fr) minmax(280px, 0.8fr);
+    gap: 24px;
+    align-items: start;
+  }
+
+  .fact-box h2 {
+    font-size: 28px;
+    margin-top: 0;
+  }
+
+  .fact-box dl {
+    margin: 0;
+  }
+
+  .fact-box div {
+    padding: 14px 0;
+    border-bottom: 1px solid #e5edf3;
+  }
+
+  .fact-box dt {
+    color: #00695c;
+    font-weight: 800;
+    margin-bottom: 4px;
+  }
+
+  .fact-box dd {
+    margin: 0;
+  }
+
+  .review-story {
+    background: #f7fafc;
+    border-top: 1px solid #e5edf3;
+    border-bottom: 1px solid #e5edf3;
+    border-radius: 8px;
+    padding: 44px 28px;
+  }
+
+  .sample-review-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sample-review-grid h2 {
+    font-size: 34px;
+  }
+
+  .answer-grid article p {
+    color: #4b5563;
+    font-size: 18px;
+    margin-bottom: 0;
+  }
+
+  .source-list {
+    display: grid;
+    gap: 10px;
+    padding-left: 22px;
+  }
+
+  @media (max-width: 760px) {
+    .vertex-sample {
+      width: calc(100% - 28px);
+      padding: 24px 0 56px;
+    }
+
+    .sample-info-grid,
+    .sample-review-grid,
+    .answer-grid,
+    .sample-two-column {
+      grid-template-columns: 1fr;
+    }
+
+    .sample-info-grid,
+    .sample-review-grid,
+    .answer-grid {
+      gap: 12px;
+      margin: 22px 0;
+    }
+
+    .sample-info-grid article,
+    .sample-review-grid article,
+    .answer-grid article,
+    .fact-box {
+      padding: 16px;
+    }
+
+    .sample-head h1 {
+      font-size: clamp(32px, 10vw, 42px);
+      line-height: 1.18;
+    }
+
+    .sample-section h2 {
+      font-size: 30px;
+      line-height: 1.24;
+    }
+
+    .sample-section p,
+    .sample-section li,
+    .fact-box dd {
+      font-size: 17px;
+      line-height: 1.78;
+    }
+
+    .review-story {
+      padding: 28px 16px;
+    }
+  }
+</style>
