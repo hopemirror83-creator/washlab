@@ -15,7 +15,7 @@
     "collect:naver-reviews": "node scripts/collect-naver-reviews.mjs",
     "generate:review-pages": "node scripts/generate-review-pages.mjs",
     "clean": "node scripts/clean-dist.mjs",
-    "build": "npm run build:data && npm run clean && astro build",
+    "build": "npm run build:data && npm run clean && astro build --silent",
     "build:cloudflare": "npm run data:restore && npm run build",
     "preview": "astro preview",
     "check": "astro check"

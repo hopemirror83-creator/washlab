@@ -11,6 +11,7 @@ Use these settings when creating the Git-integrated Pages project.
 Environment variables:
 
 - `NODE_VERSION=22`
+- `NODE_OPTIONS=--max-old-space-size=4096`
 - `PAGES_WRANGLER_MAJOR_VERSION=4`
 
 The 100,000-file Pages limit requires a paid Cloudflare plan. Free plans remain
