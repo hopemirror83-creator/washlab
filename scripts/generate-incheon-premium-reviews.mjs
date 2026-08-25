@@ -209,15 +209,25 @@ async function generateWithVertex(prompt) {
   throw new Error(lastError || 'Vertex generation failed.');
 }
 
-async function fetchWithRetry(url, options, attempts = 4) {
+async function fetchWithRetry(url, options, attempts = 6) {
   let lastError;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
-      return await fetch(url, options);
+      const response = await fetch(url, options);
+      const retryable = [429, 500, 502, 503, 504].includes(response.status);
+      if (!retryable || attempt === attempts) return response;
+
+      await response.body?.cancel();
+      const retryAfter = Number(response.headers.get('retry-after'));
+      const backoff = Number.isFinite(retryAfter) && retryAfter > 0
+        ? retryAfter * 1000
+        : Math.min(5000 * 2 ** (attempt - 1), 80000);
+      console.log(`Vertex ${response.status}; retry ${attempt}/${attempts} after ${Math.ceil(backoff / 1000)}s`);
+      await sleep(backoff);
     } catch (error) {
       lastError = error;
       if (attempt === attempts) break;
-      await sleep(1500 * attempt);
+      await sleep(Math.min(3000 * 2 ** (attempt - 1), 30000));
     }
   }
   throw lastError;
