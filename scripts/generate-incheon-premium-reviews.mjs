@@ -38,6 +38,10 @@ const reviewGroups = await readJsonIfExists(REVIEW_FILE, []);
 const generatedPages = await readJsonIfExists(GENERATED_FILE, []);
 const reviewMap = new Map(reviewGroups.map((group) => [group.sourceId, group]));
 const generatedMap = new Map(generatedPages.map((page) => [page.sourceId, page]));
+const getReviewCount = (item) => {
+  const group = reviewMap.get(item.sourceId);
+  return group ? (group.sources || []).length : Number(item.sourceRefs?.length || item.sourceCount || 0);
+};
 
 const threshold = Number(process.env.PREMIUM_REVIEW_THRESHOLD || 8);
 const limit = Number(process.env.PREMIUM_REVIEW_LIMIT || 9999);
@@ -55,10 +59,10 @@ const generatedAt = new Date().toISOString();
 const targets = carwashes
   .filter((item) => item.cityLabel === cityLabel)
   .filter((item) => !districtFilter || item.district === districtFilter)
-  .filter((item) => Number(item.sourceRefs?.length || item.sourceCount || 0) >= threshold)
+  .filter((item) => getReviewCount(item) >= threshold)
   .sort(
     (a, b) =>
-      Number(b.sourceRefs?.length || b.sourceCount || 0) - Number(a.sourceRefs?.length || a.sourceCount || 0) ||
+      getReviewCount(b) - getReviewCount(a) ||
       Number(b.rankScore || 0) - Number(a.rankScore || 0) ||
       String(a.name).localeCompare(String(b.name), 'ko'),
   )
@@ -72,7 +76,7 @@ await writeFile(
       name: item.name,
       areaLabel: item.areaLabel,
       slug: item.slug,
-      sourceCount: item.sourceRefs?.length || item.sourceCount || 0,
+      sourceCount: getReviewCount(item),
       url: `https://washlab.product-pack.com/carwash/${item.slug}/`,
     })),
     null,
@@ -122,7 +126,8 @@ function buildSources(item) {
   const group = reviewMap.get(item.sourceId);
   const fromGroup = (group?.sources || []).filter((source) => source?.link && !/\.pdf(?:$|[?#])/i.test(source.link));
   const fromItem = (item.sourceRefs || []).map((source) => ({ title: source.title, link: source.link }));
-  const merged = [...fromGroup, ...fromItem];
+  // A collected review group is authoritative, including when it was intentionally cleaned to zero.
+  const merged = reviewMap.has(item.sourceId) ? fromGroup : fromItem;
   const seen = new Set();
   return merged
     .filter((source) => {
