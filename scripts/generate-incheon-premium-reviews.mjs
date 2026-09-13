@@ -13,6 +13,7 @@ const DEFAULT_VERTEX_LOCATION = 'global';
 const DEFAULT_VERTEX_SERVICE_ACCOUNT_FILE = 'C:\\내문서\\애드버코더\\newsite-507211-b3cfb75b235a.json';
 const cityLabel = process.env.PREMIUM_CITY_LABEL || '인천';
 const districtFilter = process.env.PREMIUM_DISTRICT_FILTER || '';
+const nameFilter = process.env.PREMIUM_NAME_FILTER || '';
 const providerName = process.env.PREMIUM_PROVIDER_NAME || `gemini-${cityLabel}-premium`;
 const safeReportName = `${cityLabel}${districtFilter ? `-${districtFilter}` : ''}`.replace(/[^\w가-힣-]+/g, '-');
 const REPORT_FILE = path.join(REPORT_DIR, `${safeReportName}-premium-targets.json`);
@@ -59,6 +60,7 @@ const generatedAt = new Date().toISOString();
 const targets = carwashes
   .filter((item) => item.cityLabel === cityLabel)
   .filter((item) => !districtFilter || item.district === districtFilter)
+  .filter((item) => !nameFilter || nameFilter.split('|').some((name) => item.name === name.trim()))
   .filter((item) => getReviewCount(item) >= threshold)
   .sort(
     (a, b) =>
