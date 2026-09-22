@@ -49,6 +49,7 @@ const reviewNoticeParagraphs = allReviewParagraphs.filter(isReviewNoticeParagrap
 const reviewParagraphs = allReviewParagraphs.filter((paragraph: string) => !isReviewNoticeParagraph(paragraph));
 const reviewNoticeParagraph = reviewNoticeParagraphs[0] || '';
 const reviewHighlights = buildReviewHighlights(carwash, reviewParagraphs);
+const reviewStoryCards = buildReviewStoryCards(reviewParagraphs);
 const schema = {
   '@context': 'https://schema.org',
   '@type': 'LocalBusiness',
@@ -183,6 +184,20 @@ function reviewParagraphTitle(index: number, paragraph: string) {
   if (/실내|따뜻|겨울|여름|날씨|쾌적/.test(paragraph)) return '후기에서 보이는 분위기';
   return ['전체 분위기', '이용 흐름', '방문 전 참고할 점', '정리'][index] || '후기 정리';
 }
+
+function buildReviewStoryCards(paragraphs: string[]) {
+  const usedTitles = new Set<string>();
+  const fallbackTitles = ['전체 분위기', '이용 흐름', '방문 전 참고할 점', '정리'];
+
+  return paragraphs.map((paragraph, index) => {
+    const suggestedTitle = reviewParagraphTitle(index, paragraph);
+    const title = usedTitles.has(suggestedTitle)
+      ? fallbackTitles.find((candidate) => !usedTitles.has(candidate)) || `후기 정리 ${index + 1}`
+      : suggestedTitle;
+    usedTitles.add(title);
+    return { paragraph, title };
+  });
+}
 ---
 
 <BaseLayout title={carwash.title} description={carwash.metaDescription} schema={schema}>
@@ -307,12 +322,12 @@ function reviewParagraphTitle(index: number, paragraph: string) {
             </div>
           )}
           <div class="review-story-cards">
-            {reviewParagraphs.map((paragraph: string, index: number) => (
+            {reviewStoryCards.map((item, index: number) => (
               <article class="review-story-card">
                 <span>{String(index + 1).padStart(2, '0')}</span>
                 <div>
-                  <h3>{reviewParagraphTitle(index, paragraph)}</h3>
-                  <p>{paragraph}</p>
+                  <h3>{item.title}</h3>
+                  <p>{item.paragraph}</p>
                 </div>
               </article>
             ))}
