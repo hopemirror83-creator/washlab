@@ -190,6 +190,7 @@ function getIntentExamples(group: any) {
     <p class="eyebrow">{isIntentGroup ? '지역+유형 묶음' : '지역 묶음'}</p>
     <h1>{title}</h1>
     <p>{description}</p>
+    {group.searchIntro && <p class="search-focus-intro">{group.searchIntro}</p>}
   </section>
 
   <AdSlot placement="top" />

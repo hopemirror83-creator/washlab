@@ -606,6 +606,46 @@ function buildAreaSeoDescription({ label, type = '세차장', count = 0, scope =
   return clipMeta(`${label} ${baseType} ${countText} 정리했습니다. 셀프세차, 손세차, 자동세차, 24시간 여부와 네이버 지도 정보를 기준으로 ${guide}`);
 }
 
+function getAreaSearchOverride(slug) {
+  return ({
+  'gyeonggi-ansansi-carwash': {
+    title: '안산 세차장 추천 비교 | 자동세차·손세차·셀프세차',
+    description: '안산 세차장 46곳을 노터치 자동세차, 손세차, 셀프세차로 나눠 비교했습니다. 위치와 후기, 운영시간, 가격 확인 여부를 한번에 살펴보세요.',
+    searchIntro: '안산에서 세차장을 찾을 때는 먼저 빠른 자동세차, 차량 상태를 세세하게 볼 수 있는 손세차, 직접 이용하는 셀프세차 중 원하는 방식부터 정하는 편이 좋습니다. 고잔동·사동·초지동 등 이동 동선과 블로그 후기, 야간 이용 여부를 같이 비교하면 선택지를 빠르게 줄일 수 있습니다.',
+  },
+  'gyeonggi-ansansi-nobrush-carwash': {
+    title: '안산 노터치 자동세차 추천 | 위치·가격·후기 비교',
+    description: '안산 노터치 자동세차 6곳의 위치와 가격 정보, 하부세차·건조 코스, 네이버 블로그 후기 여부를 비교했습니다.',
+    searchIntro: '솔이 차체에 닿는 방식이 부담스러워 ‘안산 노터치 자동세차’를 찾는 분을 위한 비교 페이지입니다. 노브러쉬라는 명칭만 보지 말고 예비 고압수, 폼 분사, 하부세차, 건조가 어떤 코스에 포함되는지와 피크타임 대기 후기를 함께 확인해 보세요.',
+  },
+  'gyeonggi-ansansi-auto-carwash': {
+    title: '안산 자동세차장 추천 비교 | 노터치·주유소·가격',
+    description: '안산 자동세차장 17곳을 노터치 방식과 주유소 부속 세차로 나눠 위치, 코스, 가격 확인 여부, 후기를 정리했습니다.',
+    searchIntro: '‘근처 자동세차장’을 찾는다면 거리와 함께 세차 방식을 먼저 보는 것이 좋습니다. 안산의 자동세차장은 노터치·노브러쉬 방식과 주유소 세차기로 나뉘므로, 세차 시간과 코스별 요금, 하부세차, 건조 구간을 비교한 뒤 이동 동선에 맞는 곳을 고르세요.',
+  },
+  'gyeonggi-ansansi-hand-carwash': {
+    title: '안산 손세차 가격·추천 비교 | 실내세차·후기',
+    description: '안산 손세차 37곳의 위치와 가격 확인 여부, 실내세차·디테일링 범위, 예약과 블로그 후기를 비교했습니다.',
+    searchIntro: '안산 손세차는 차종과 오염 상태, 실내 청소 포함 여부에 따라 가격과 작업 시간이 달라집니다. 외부 손세차만 필요한지, 매트·시트·트렁크까지 보는 실내세차가 필요한지를 먼저 정하고 후기에서 반복되는 장단점과 예약 가능 여부를 살펴보세요.',
+  },
+  'gyeonggi-ansansi-interior-carwash': {
+    title: '안산 실내세차 가격·추천 비교 | 시트·매트·에바크리닝',
+    description: '안산 실내세차 18곳의 위치와 가격 확인 여부, 시트·매트·트렁크·에바크리닝 작업 범위, 예약과 후기를 정리했습니다.',
+    searchIntro: '실내세차는 업체마다 기본 작업 범위가 큰 편입니다. 단순 진공청소인지, 시트 틈새와 매트, 송풍구, 트렁크, 냄새 관리까지 포함하는지를 확인하고 차종별 요금과 작업 소요 시간을 함께 물어보는 것이 좋습니다.',
+  },
+  'gyeonggi-ansansi-self-carwash': {
+    title: '안산 셀프세차장 추천 비교 | 가격·시설·후기',
+    description: '안산 셀프세차장 19곳의 위치와 기본요금, 세차 베이·드라잉존·진공청소기, 24시간 이용과 후기를 비교했습니다.',
+    searchIntro: '안산 셀프세차장은 기본요금만큼 주어지는 시간과 장비 구성이 중요합니다. 고압수·폼건의 시간 차감 방식, 드라잉존 혼잡도, 진공청소기와 매트세척기 이용 여부를 비교하고 야간 방문이라면 최신 영업 상태도 확인해 보세요.',
+  },
+  })[slug];
+}
+
+function applyAreaSearchOverride(group) {
+  const override = getAreaSearchOverride(group.slug);
+  return override ? { ...group, ...override } : group;
+}
+
 function applyTemplatePolish(item) {
   const area = item.areaLabel || [item.cityLabel, item.district, item.dong].filter(Boolean).join(' ');
   const address = item.roadAddress || item.lotAddress || '주소 정보 없음';
@@ -966,6 +1006,7 @@ function buildGroups(items) {
       if (['place', 'placeType', 'dongType'].includes(group.type)) return false;
       return group.items.length >= 2;
     })
+    .map(applyAreaSearchOverride)
     .sort((a, b) => {
       const order = { city: 0, district: 1, districtType: 2, priorityKeyword: 3, dong: 4 };
       return (order[a.type] ?? 9) - (order[b.type] ?? 9) || cityOrderFromSlug(a.slug) - cityOrderFromSlug(b.slug) || b.items.length - a.items.length || a.name.localeCompare(b.name, 'ko');

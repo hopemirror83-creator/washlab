@@ -255,6 +255,18 @@ h2 {
   padding-top: 54px;
 }
 
+.page-head .search-focus-intro {
+  max-width: 920px;
+  margin-top: 22px;
+  margin-bottom: 0;
+  padding: 16px 18px;
+  border-left: 4px solid var(--accent);
+  background: #f4f9ff;
+  color: var(--ink);
+  font-size: 17px;
+  line-height: 1.75;
+}
+
 .section-tint {
   width: 100%;
   max-width: none;
@@ -1673,6 +1685,11 @@ h2 {
 
   .page-head {
     padding: 34px 0;
+  }
+
+  .page-head .search-focus-intro {
+    margin-top: 18px;
+    padding: 14px 15px;
   }
 
   h1,
